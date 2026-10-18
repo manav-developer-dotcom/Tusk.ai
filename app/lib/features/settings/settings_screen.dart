@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import '../../core/network/api_config.dart';
 import '../../core/theme/tusk_theme.dart';
 
 /// Settings screen for Tusk.ai.
@@ -8,11 +9,13 @@ import '../../core/theme/tusk_theme.dart';
 class SettingsScreen extends StatelessWidget {
   final ThemeMode currentThemeMode;
   final ValueChanged<ThemeMode> onThemeChanged;
+  final ApiConfig? apiConfig;
 
   const SettingsScreen({
     super.key,
     required this.currentThemeMode,
     required this.onThemeChanged,
+    this.apiConfig,
   });
 
   @override
@@ -117,6 +120,23 @@ class SettingsScreen extends StatelessWidget {
               child: Column(
                 children: [
                   ListTile(
+                    leading: Icon(LucideIcons.server, color: textSecondary, size: 20),
+                    title: Text('Mission Backend (FastAPI)', style: TextStyle(color: textPrimary, fontSize: 15)),
+                    subtitle: Text(
+                      apiConfig?.baseUrl ?? ApiConfig.resolveDefaultBaseUrl(),
+                      style: TextStyle(color: isDark ? TuskColors.darkTextMuted : TuskColors.lightTextMuted, fontSize: 12),
+                    ),
+                    trailing: Text(
+                      'Phase 3 Live',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: textPrimary,
+                      ),
+                    ),
+                  ),
+                  Divider(color: isDark ? TuskColors.darkDivider : TuskColors.lightDivider),
+                  ListTile(
                     leading: Icon(LucideIcons.fileText, color: textSecondary, size: 20),
                     title: Text('Text Generation (LLM)', style: TextStyle(color: textPrimary, fontSize: 15)),
                     trailing: Text(
@@ -180,10 +200,10 @@ class SettingsScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Tusk.ai v0.1.0 (Phase 1)', style: TextStyle(color: textPrimary, fontWeight: FontWeight.w600)),
+                  Text('Tusk.ai v0.3.0 (Phase 3)', style: TextStyle(color: textPrimary, fontWeight: FontWeight.w600)),
                   const SizedBox(height: 4),
                   Text(
-                    'Local developer edition. Independent action assistant architecture.',
+                    'Connected to persistent FastAPI SQLite backend. Independent action assistant architecture.',
                     style: TextStyle(color: textSecondary, fontSize: 13),
                   ),
                 ],
@@ -195,3 +215,4 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 }
+

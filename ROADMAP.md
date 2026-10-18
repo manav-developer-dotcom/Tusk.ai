@@ -51,7 +51,7 @@ Exit criteria:
 - Core screens are navigable and tested.
 - Demo mode cannot be mistaken for a production connection.
 
-## Phase 3 — Backend foundation and task persistence
+## Phase 3 — Backend foundation and task persistence (Completed)
 **Goal:** connect the app to a real backend contract.
 
 Tasks:

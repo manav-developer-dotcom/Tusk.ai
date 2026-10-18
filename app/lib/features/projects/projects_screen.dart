@@ -39,6 +39,11 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     setState(() {
       _missions = widget.missionRepository!.loadMissions();
     });
+    if (widget.missionRepository!.hasRemoteBackend) {
+      widget.missionRepository!.syncRemoteMissions().then((synced) {
+        if (mounted) setState(() => _missions = synced);
+      });
+    }
   }
 
   void _openMission(Mission mission) {

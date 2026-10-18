@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'core/network/api_client.dart';
+import 'core/network/api_config.dart';
 import 'core/theme/tusk_theme.dart';
 import 'core/widgets/tusk_wordmark_shine.dart';
 import 'features/onboarding/welcome_screen.dart';
@@ -10,21 +12,36 @@ import 'features/settings/settings_screen.dart';
 import 'features/conversation/models/conversation.dart';
 import 'features/conversation/services/conversation_repository.dart';
 import 'features/conversation/widgets/conversation_sidebar.dart';
+import 'features/mission/services/mission_api_service.dart';
 import 'features/mission/services/mission_repository.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final prefs = await SharedPreferences.getInstance();
+  final apiConfig = ApiConfig(prefs);
+  final apiClient = ApiClient(config: apiConfig);
+  final apiService = MissionApiService(apiClient);
   final convRepo = ConversationRepository(prefs);
-  final missionRepo = MissionRepository(prefs);
-  runApp(TuskApp(convRepository: convRepo, missionRepository: missionRepo));
+  final missionRepo = MissionRepository(prefs, apiService: apiService);
+
+  runApp(TuskApp(
+    convRepository: convRepo,
+    missionRepository: missionRepo,
+    apiConfig: apiConfig,
+  ));
 }
 
 class TuskApp extends StatefulWidget {
   final ConversationRepository? convRepository;
   final MissionRepository? missionRepository;
+  final ApiConfig? apiConfig;
 
-  const TuskApp({super.key, this.convRepository, this.missionRepository});
+  const TuskApp({
+    super.key,
+    this.convRepository,
+    this.missionRepository,
+    this.apiConfig,
+  });
 
   @override
   State<TuskApp> createState() => _TuskAppState();
@@ -48,6 +65,7 @@ class _TuskAppState extends State<TuskApp> {
       home: TuskRootNavigation(
         convRepository: widget.convRepository,
         missionRepository: widget.missionRepository,
+        apiConfig: widget.apiConfig,
         currentThemeMode: _themeMode,
         onThemeChanged: _updateThemeMode,
       ),
@@ -58,6 +76,7 @@ class _TuskAppState extends State<TuskApp> {
 class TuskRootNavigation extends StatefulWidget {
   final ConversationRepository? convRepository;
   final MissionRepository? missionRepository;
+  final ApiConfig? apiConfig;
   final ThemeMode currentThemeMode;
   final ValueChanged<ThemeMode> onThemeChanged;
 
@@ -65,6 +84,7 @@ class TuskRootNavigation extends StatefulWidget {
     super.key,
     this.convRepository,
     this.missionRepository,
+    this.apiConfig,
     required this.currentThemeMode,
     required this.onThemeChanged,
   });
@@ -82,6 +102,7 @@ class _TuskRootNavigationState extends State<TuskRootNavigation> {
 
   late ConversationRepository _convRepo;
   late MissionRepository _missionRepo;
+  ApiConfig? _apiConfig;
 
   List<Conversation> _conversations = [];
   Conversation? _activeConversation;
@@ -89,6 +110,7 @@ class _TuskRootNavigationState extends State<TuskRootNavigation> {
   @override
   void initState() {
     super.initState();
+    _apiConfig = widget.apiConfig;
     _initRepositories();
   }
 
@@ -100,9 +122,13 @@ class _TuskRootNavigationState extends State<TuskRootNavigation> {
     } else {
       SharedPreferences.getInstance().then((prefs) {
         if (mounted) {
+          final config = _apiConfig ?? ApiConfig(prefs);
+          final apiClient = ApiClient(config: config);
+          final apiService = MissionApiService(apiClient);
           setState(() {
+            _apiConfig = config;
             _convRepo = ConversationRepository(prefs);
-            _missionRepo = MissionRepository(prefs);
+            _missionRepo = MissionRepository(prefs, apiService: apiService);
             _loadConversations();
           });
         }
@@ -225,6 +251,7 @@ class _TuskRootNavigationState extends State<TuskRootNavigation> {
       SettingsScreen(
         currentThemeMode: widget.currentThemeMode,
         onThemeChanged: widget.onThemeChanged,
+        apiConfig: _apiConfig,
       ),
     ];
 

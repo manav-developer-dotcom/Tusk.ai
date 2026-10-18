@@ -6,40 +6,70 @@
 - **Phase 1 (App Shell & Design System):** Completed. Strict monochrome system, cold-launch wordmark shine, navigation skeleton, and APK workflow.
 - **Phase 2 (Core Mission UX):** Completed. Natural-language goal intake, interactive clarification flow, isolated rule-based local planner, plan review and approval flow, state machine, and local persistence.
 - **Phase 2.5 (Pre-Backend Environment & Repository Foundation):** Completed. Git version control initialized, clean baseline commit created, Python 3.12.10 installed & verified, and Phase 3 API contract audited.
-- **Phase 3 (Backend Foundation & Task Persistence):** Ready to implement (FastAPI backend + persistence).
+- **Phase 3 (Backend Foundation & Task Persistence):** Completed. FastAPI/Python 3.12 backend implemented under `backend/` with SQLite persistence across restarts, session isolation, plan generation, structured errors, correlation tracing, and Flutter client API integration with platform-aware URL routing.
 
 ## Verified Environment & Prerequisites
 
 - **Client Framework:** Flutter `3.32.2` (channel stable)
 - **Language / SDK:** Dart `3.8.1` (stable)
 - **Android Platform:** Android SDK (API 34/35), Gradle 8.3+ via wrapper
-- **Version Control:** Git (initialized with root `.gitignore` excluding build outputs and secrets)
+- **Version Control:** Git (initialized with root `.gitignore` excluding build outputs, `.venv`, `.env`, and database files)
 - **Host OS:** Windows (PowerShell)
 - **Backend Runtime:** Python `3.12.10` (64-bit), pip `25.0.1` (verified at `C:\Users\Test\AppData\Local\Programs\Python\Python312\python.exe`)
 - **Other Runtimes:** Node.js (`v22`) available on system
 
 ## Engineering Workflow & Verified Commands
 
-### 1. Flutter Client Verification
+### 1. Backend Service Setup & Execution
+Navigate to `backend/`:
+```powershell
+cd backend
+```
+
+- **Set up virtual environment & install dependencies:**
+  ```powershell
+  python -m venv .venv
+  .venv\Scripts\activate
+  pip install -r requirements.txt
+  ```
+
+- **Run backend test suite (15 automated tests):**
+  ```powershell
+  .venv\Scripts\pytest tests -v
+  ```
+
+- **Start backend server locally:**
+  ```powershell
+  .venv\Scripts\python run.py
+  # Alternatively:
+  # .venv\Scripts\uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+  ```
+  Health check is accessible at: `http://127.0.0.1:8000/health`
+
+### 2. Flutter Client Verification
 Navigate to `app/`:
 ```powershell
 cd app
 ```
 
-- **Run all automated unit and widget tests (20 tests):**
+- **Run all automated unit and integration tests (28 tests):**
   ```powershell
   flutter test
   ```
-- **Run static analysis and linter:**
+- **Run static analysis and linter (0 issues):**
   ```powershell
   flutter analyze
   ```
+- **Configure API Base URL:**
+  - Android Emulator: `http://10.0.2.2:8000` (automatically routed)
+  - Windows Desktop / Web: `http://127.0.0.1:8000` (automatically routed)
+  - Custom target: configure in Settings screen or pass `--dart-define=API_BASE_URL=http://<host>:8000`
 - **Launch application (emulator or physical device):**
   ```powershell
   flutter run
   ```
 
-### 2. Local Android APK Build
+### 3. Local Android APK Build
 Build the standalone debug APK and copy it to `artifacts/apk/`:
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/build_apk.ps1

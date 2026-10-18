@@ -126,6 +126,35 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _startMission(String goal) async {
     if (widget.missionRepository == null) return;
 
+    if (widget.missionRepository!.hasRemoteBackend) {
+      setState(() => _isPlanning = true);
+      try {
+        final mission = await widget.missionRepository!.createRemoteMission(
+          goal: goal,
+          conversationId: widget.activeConversation?.id,
+        );
+        if (!mounted) return;
+        setState(() {
+          _activeMission = mission;
+          _isPlanning = false;
+        });
+
+        if (mission.status == MissionStatus.needsClarification) {
+          _postSystemMessage(
+              'To plan this mission, I need a little more information. '
+              'Please answer the question below.');
+        } else {
+          _postSystemMessage(
+              'Plan ready for your review. Tap "Review plan" to approve or cancel.');
+        }
+        return;
+      } catch (e) {
+        if (!mounted) return;
+        _postSystemMessage(
+            'Backend connection issue ($e). Operating in local offline mode.');
+      }
+    }
+
     final now = DateTime.now();
     final missionId = 'mission_${now.millisecondsSinceEpoch}';
     final shortTitle =
