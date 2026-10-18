@@ -58,3 +58,14 @@ Use this file to record durable decisions. Add a date, context, decision, conseq
   3. Stored missions in `MissionRepository` backed by `SharedPreferences`, decoupling conversation deletion (`detachConversation`) so that deleting a chat thread preserves mission records for user review.
   4. Maintained strictly monochrome design (black, white, greys), zero emojis, Lucide vector icons, and honest voice feedback.
 - Consequences: UI cleanly unblocks full user flow testing while remaining completely honest; zero technical debt for Phase 3 backend swap.
+
+### 2026-10-19 — Phase 2.5: Backend Runtime Decision (FastAPI/Python 3.12 Confirmed) & Repository Baseline
+- Status: Accepted
+- Context: `README.md` specified a FastAPI/Python backend target, but the host environment initially lacked Python (only Windows Store stub). Evaluated alternatives (Node.js, Dart, Python).
+- Decision:
+  1. Confirmed and retained FastAPI/Python as the authoritative backend stack. Python is the native SDK runtime for planned Fetch.ai interoperability (`uagents` in Phase 5) and offers strict Pydantic schema validation matching `API_CONTRACT.md`.
+  2. Installed and verified Python 3.12.10 (64-bit) with pip 25.0.1 on the host environment via Windows Package Manager (`winget`).
+  3. Initialized local Git version control, configured root `.gitignore` excluding build outputs/large APK binaries/secrets, and created the baseline commit for working Phase 2 code.
+  4. Updated `DEVELOPMENT.md` with verified environment versions and commands.
+- Consequences: Environment is unblocked for Phase 3 without architecture drift or tech stack rework.
+

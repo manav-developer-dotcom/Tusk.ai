@@ -5,8 +5,8 @@
 - **Phase 0 (Foundation & Audit):** Completed. Stack decisions documented.
 - **Phase 1 (App Shell & Design System):** Completed. Strict monochrome system, cold-launch wordmark shine, navigation skeleton, and APK workflow.
 - **Phase 2 (Core Mission UX):** Completed. Natural-language goal intake, interactive clarification flow, isolated rule-based local planner, plan review and approval flow, state machine, and local persistence.
-- **Phase 2.5 (Pre-Backend Environment & Repository Foundation):** Active. Version control baseline established, environment audit completed, backend runtime resolution in progress.
-- **Phase 3 (Backend Foundation & Task Persistence):** Pending runtime resolution and backend implementation.
+- **Phase 2.5 (Pre-Backend Environment & Repository Foundation):** Completed. Git version control initialized, clean baseline commit created, Python 3.12.10 installed & verified, and Phase 3 API contract audited.
+- **Phase 3 (Backend Foundation & Task Persistence):** Ready to implement (FastAPI backend + persistence).
 
 ## Verified Environment & Prerequisites
 
@@ -15,8 +15,8 @@
 - **Android Platform:** Android SDK (API 34/35), Gradle 8.3+ via wrapper
 - **Version Control:** Git (initialized with root `.gitignore` excluding build outputs and secrets)
 - **Host OS:** Windows (PowerShell)
-- **Node.js:** Installed (`v22`)
-- **Python / Backend Runtime:** Pending resolution. Python is not currently installed on the host system; Python 3.11+ is required for the planned FastAPI backend target.
+- **Backend Runtime:** Python `3.12.10` (64-bit), pip `25.0.1` (verified at `C:\Users\Test\AppData\Local\Programs\Python\Python312\python.exe`)
+- **Other Runtimes:** Node.js (`v22`) available on system
 
 ## Engineering Workflow & Verified Commands
 
