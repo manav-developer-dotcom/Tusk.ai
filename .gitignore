@@ -1,0 +1,70 @@
+# ==============================================================================
+# Tusk.ai Root Git Ignore
+# ==============================================================================
+
+# Environment and Secrets (SECURITY.md)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+
+# Flutter / Dart
+app/.dart_tool/
+app/.flutter-plugins
+app/.flutter-plugins-dependencies
+app/.pub-cache/
+app/.pub/
+app/build/
+**/doc/api/
+.dart_tool/
+build/
+
+# Android Build Outputs & Local Config
+app/android/.gradle/
+app/android/.kotlin/
+app/android/local.properties
+app/android/captures/
+app/android/.cxx/
+**/key.properties
+**/*.keystore
+**/*.jks
+
+# Binary Artifacts (Do not commit large debug/release APKs to git)
+artifacts/apk/*.apk
+artifacts/apk/*.aab
+*.apk
+*.aab
+
+# IDE & Editor Files
+.idea/
+app/.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+*.swp
+*~
+
+# Operating System Files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs and Diagnostics
+*.log
+*.buildlog
+
+# Future Backend Artifacts (Python / Node)
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+.pytest_cache/
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

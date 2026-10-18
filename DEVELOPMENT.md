@@ -1,0 +1,77 @@
+# Tusk.ai — Development Guide
+
+## Status
+
+- **Phase 0 (Foundation & Audit):** Completed. Stack decisions documented.
+- **Phase 1 (App Shell & Design System):** Completed. Strict monochrome system, cold-launch wordmark shine, navigation skeleton, and APK workflow.
+- **Phase 2 (Core Mission UX):** Completed. Natural-language goal intake, interactive clarification flow, isolated rule-based local planner, plan review and approval flow, state machine, and local persistence.
+- **Phase 2.5 (Pre-Backend Environment & Repository Foundation):** Active. Version control baseline established, environment audit completed, backend runtime resolution in progress.
+- **Phase 3 (Backend Foundation & Task Persistence):** Pending runtime resolution and backend implementation.
+
+## Verified Environment & Prerequisites
+
+- **Client Framework:** Flutter `3.32.2` (channel stable)
+- **Language / SDK:** Dart `3.8.1` (stable)
+- **Android Platform:** Android SDK (API 34/35), Gradle 8.3+ via wrapper
+- **Version Control:** Git (initialized with root `.gitignore` excluding build outputs and secrets)
+- **Host OS:** Windows (PowerShell)
+- **Node.js:** Installed (`v22`)
+- **Python / Backend Runtime:** Pending resolution. Python is not currently installed on the host system; Python 3.11+ is required for the planned FastAPI backend target.
+
+## Engineering Workflow & Verified Commands
+
+### 1. Flutter Client Verification
+Navigate to `app/`:
+```powershell
+cd app
+```
+
+- **Run all automated unit and widget tests (20 tests):**
+  ```powershell
+  flutter test
+  ```
+- **Run static analysis and linter:**
+  ```powershell
+  flutter analyze
+  ```
+- **Launch application (emulator or physical device):**
+  ```powershell
+  flutter run
+  ```
+
+### 2. Local Android APK Build
+Build the standalone debug APK and copy it to `artifacts/apk/`:
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/build_apk.ps1
+```
+Verified output location: `artifacts/apk/TuskAI-debug.apk`
+
+## Repository Structure
+
+```text
+Husk.ai/
+├── app/                  # Flutter client source code and Android project
+│   ├── lib/              # Core theme, widgets, and feature modules
+│   └── test/             # Unit and widget test suites
+├── artifacts/            # Generated outputs (APKs, reports; binaries gitignored)
+├── docs/                 # Architectural Decision Records (ADRs) and integration docs
+├── prompts/              # Phased execution prompts (Phase 00 through Phase 07)
+├── scripts/              # Build and asset generation PowerShell scripts
+├── AGENTS.md             # Antigravity operating rules & non-negotiables
+├── API_CONTRACT.md       # Client-backend API specification
+├── architecture.md       # Authoritative system architecture
+├── DESIGN_SYSTEM.md      # Visual tokens, UX, and accessibility requirements
+├── DEVELOPMENT.md        # Local setup and engineering workflow (this document)
+├── PRD.md                # Product Requirements Document
+├── PRODUCT_DECISIONS.md  # Durable decision log and open questions
+├── README.md             # Project overview and high-level status
+├── ROADMAP.md            # Phased roadmap and exit criteria
+├── SECURITY.md           # Security, authentication, and data privacy baseline
+└── TESTING.md            # Quality strategy and test requirements
+```
+
+## Environment Separation & Secrets
+
+- Secrets must **never** be committed to version control or embedded in the Flutter APK.
+- Backend configuration must be managed through `.env` files (ignored by `.gitignore`) with `.env.example` containing only placeholder documentation.
+- When backend development begins in Phase 3, environment variables will be loaded server-side only.

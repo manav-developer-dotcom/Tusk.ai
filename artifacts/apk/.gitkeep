@@ -1,0 +1,1 @@
+# Preserve artifacts directory structure in git. Build outputs (.apk) are ignored.
