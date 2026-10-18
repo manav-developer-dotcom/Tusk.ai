@@ -7,6 +7,7 @@
 - **Phase 2 (Core Mission UX):** Completed. Natural-language goal intake, interactive clarification flow, isolated rule-based local planner, plan review and approval flow, state machine, and local persistence.
 - **Phase 2.5 (Pre-Backend Environment & Repository Foundation):** Completed. Git version control initialized, clean baseline commit created, Python 3.12.10 installed & verified, and Phase 3 API contract audited.
 - **Phase 3 (Backend Foundation & Task Persistence):** Completed. FastAPI/Python 3.12 backend implemented under `backend/` with SQLite persistence across restarts, session isolation, plan generation, structured errors, correlation tracing, and Flutter client API integration with platform-aware URL routing.
+- **Phase 4 (Real AI Planning & Task Execution):** Completed. Real Gemini API integration (`gemini-3.8-flash`) for structured mission planning, single-question clarification, backend execution engine with allowlisted tools (`marketing_strategy`, `copywriter`, `content_planner`, `deliverable_packager`, `generic_writer`), persistent artifact storage, and full Flutter UI for execution and deliverable viewing.
 
 ## Verified Environment & Prerequisites
 
@@ -33,10 +34,19 @@ cd backend
   pip install -r requirements.txt
   ```
 
-- **Run backend test suite (15 automated tests):**
+- **Run backend test suite (26 automated tests):**
   ```powershell
   .venv\Scripts\pytest tests -v
   ```
+
+- **Configure Gemini API key (required for real AI planning & execution):**
+  ```powershell
+  # Create backend/.env from example:
+  Copy-Item backend\.env.example backend\.env
+  # Then edit backend/.env and set:
+  # GEMINI_API_KEY=your_key_here
+  ```
+  Without a key the backend falls back to the rule-based dev adapter (labelled in the UI).
 
 - **Start backend server locally:**
   ```powershell
@@ -52,7 +62,7 @@ Navigate to `app/`:
 cd app
 ```
 
-- **Run all automated unit and integration tests (28 tests):**
+- **Run all automated unit and integration tests (32 tests):**
   ```powershell
   flutter test
   ```
@@ -104,4 +114,5 @@ Husk.ai/
 
 - Secrets must **never** be committed to version control or embedded in the Flutter APK.
 - Backend configuration must be managed through `.env` files (ignored by `.gitignore`) with `.env.example` containing only placeholder documentation.
-- When backend development begins in Phase 3, environment variables will be loaded server-side only.
+- `GEMINI_API_KEY` (or `TUSK_GEMINI_API_KEY`) is loaded server-side only; it is never sent to the Flutter client or included in the APK.
+- When no key is configured, the backend automatically falls back to the rule-based development adapter and labels itself clearly in the UI.

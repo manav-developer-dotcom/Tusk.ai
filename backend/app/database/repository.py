@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from typing import Any
 from ..models.domain import MissionStatus, StepStatus
 from ..models.schemas import (
+    ArtifactItem,
     ClarificationQuestion,
     MissionPlanResponse,
     MissionResponse,
@@ -252,3 +253,129 @@ class MissionRepository:
         )
 
         return self.get_mission_by_id(session_id, mission_id)
+
+    def update_step_status(
+        self,
+        mission_id: str,
+        step_id: str,
+        status: StepStatus,
+        result_text: str | None = None,
+        error_message: str | None = None,
+    ) -> None:
+        """Update an individual step's execution status, result text, and error."""
+        completed_at = (
+            datetime.now(timezone.utc).isoformat()
+            if status == StepStatus.COMPLETED
+            else None
+        )
+        self.conn.execute(
+            """
+            UPDATE mission_steps
+            SET status = ?, result_text = ?, error_message = ?, completed_at = ?
+            WHERE id = ? AND mission_id = ?
+            """,
+            (
+                status.value,
+                result_text,
+                error_message,
+                completed_at,
+                step_id,
+                mission_id,
+            ),
+        )
+
+    def create_artifact(
+        self,
+        artifact_id: str,
+        mission_id: str,
+        step_id: str | None,
+        session_id: str,
+        media_type: str,
+        name: str,
+        file_path: str,
+        size_bytes: int,
+    ) -> ArtifactItem:
+        """Persist a deliverable artifact record associated with a mission and session."""
+        now = datetime.now(timezone.utc).isoformat()
+        self.conn.execute(
+            """
+            INSERT INTO artifacts (
+                id, mission_id, step_id, session_id, media_type, name, file_path, size_bytes, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                artifact_id,
+                mission_id,
+                step_id,
+                session_id,
+                media_type,
+                name,
+                file_path,
+                size_bytes,
+                now,
+            ),
+        )
+        return ArtifactItem(
+            id=artifact_id,
+            mission_id=mission_id,
+            step_id=step_id,
+            media_type=media_type,
+            name=name,
+            size_bytes=size_bytes,
+            url=f"/v1/artifacts/{artifact_id}",
+            created_at=now,
+        )
+
+    def list_artifacts(self, session_id: str, mission_id: str) -> list[ArtifactItem]:
+        """List all artifacts generated for a mission within the caller's session."""
+        cursor = self.conn.execute(
+            """
+            SELECT id, mission_id, step_id, media_type, name, size_bytes, created_at
+            FROM artifacts
+            WHERE mission_id = ? AND session_id = ?
+            ORDER BY created_at ASC
+            """,
+            (mission_id, session_id),
+        )
+        rows = cursor.fetchall()
+        return [
+            ArtifactItem(
+                id=r["id"],
+                mission_id=r["mission_id"],
+                step_id=r["step_id"],
+                media_type=r["media_type"],
+                name=r["name"],
+                size_bytes=r["size_bytes"],
+                url=f"/v1/artifacts/{r['id']}",
+                created_at=r["created_at"],
+            )
+            for r in rows
+        ]
+
+    def get_artifact(
+        self, session_id: str, artifact_id: str
+    ) -> tuple[ArtifactItem, str] | None:
+        """Retrieve artifact metadata and local file path ensuring session isolation."""
+        cursor = self.conn.execute(
+            """
+            SELECT id, mission_id, step_id, media_type, name, file_path, size_bytes, created_at
+            FROM artifacts
+            WHERE id = ? AND session_id = ?
+            """,
+            (artifact_id, session_id),
+        )
+        row = cursor.fetchone()
+        if not row:
+            return None
+
+        item = ArtifactItem(
+            id=row["id"],
+            mission_id=row["mission_id"],
+            step_id=row["step_id"],
+            media_type=row["media_type"],
+            name=row["name"],
+            size_bytes=row["size_bytes"],
+            url=f"/v1/artifacts/{row['id']}",
+            created_at=row["created_at"],
+        )
+        return item, row["file_path"]

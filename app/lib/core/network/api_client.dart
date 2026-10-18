@@ -115,7 +115,7 @@ class ApiClient {
     }
 
     if (response.statusCode >= 200 && response.statusCode < 300) {
-      return jsonBody;
+      return jsonBody ?? response.body;
     }
 
     // Parse structured backend error matching API_CONTRACT.md

@@ -27,14 +27,14 @@ def get_current_session_id(
 
 
 @router.post("", response_model=MissionResponse, status_code=status.HTTP_201_CREATED, summary="Create a new mission")
-def create_mission(
+async def create_mission(
     payload: CreateMissionRequest,
     session_id: str = Depends(get_current_session_id),
 ) -> MissionResponse:
     """Create a mission from a user goal and automatically generate a plan or clarifications."""
     with get_db_connection() as conn:
         svc = MissionService(conn)
-        return svc.create_mission(
+        return await svc.create_mission(
             session_id=session_id,
             goal=payload.goal,
             context=payload.context,
@@ -74,6 +74,17 @@ def approve_mission(
     with get_db_connection() as conn:
         svc = MissionService(conn)
         return svc.approve_mission(session_id=session_id, mission_id=mission_id)
+
+
+@router.post("/{mission_id}/execute", response_model=MissionResponse, summary="Execute an approved mission")
+async def execute_mission(
+    mission_id: str,
+    session_id: str = Depends(get_current_session_id),
+) -> MissionResponse:
+    """Execute all steps of an approved mission using allowlisted backend tools and generate deliverables."""
+    with get_db_connection() as conn:
+        svc = MissionService(conn)
+        return await svc.execute_mission(session_id=session_id, mission_id=mission_id)
 
 
 @router.post("/{mission_id}/cancel", response_model=MissionResponse, summary="Cancel an active mission")
@@ -116,9 +127,7 @@ def list_mission_artifacts(
     mission_id: str,
     session_id: str = Depends(get_current_session_id),
 ) -> ArtifactListResponse:
-    """List result artifacts. Returns an empty collection in Phase 3 until Phase 4 tools are wired."""
+    """List persistent result artifacts generated for a mission."""
     with get_db_connection() as conn:
         svc = MissionService(conn)
-        # Ensure mission exists and belongs to the session
-        svc.get_mission(session_id=session_id, mission_id=mission_id)
-        return ArtifactListResponse(artifacts=[], total=0)
+        return svc.list_artifacts(session_id=session_id, mission_id=mission_id)

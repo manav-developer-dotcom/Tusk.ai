@@ -55,6 +55,10 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
           onApprove: () => _approveMission(mission),
           onCancel: () => _cancelMission(mission),
           onRetry: () => _retryMission(mission),
+          onExecute: () => _executeMission(mission),
+          onDownloadArtifact: widget.missionRepository != null
+              ? (id) => widget.missionRepository!.getArtifactContent(id)
+              : null,
         ),
       ),
     ).then((_) => _loadMissions());
@@ -88,6 +92,18 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     if (mounted) {
       _loadMissions();
     }
+  }
+
+  Future<void> _executeMission(Mission mission) async {
+    if (widget.missionRepository == null) return;
+    Navigator.pop(context);
+    _loadMissions();
+    try {
+      await widget.missionRepository!.executeMission(mission.id);
+    } catch (_) {
+      // Error visible when user reopens the mission.
+    }
+    if (mounted) _loadMissions();
   }
 
   @override

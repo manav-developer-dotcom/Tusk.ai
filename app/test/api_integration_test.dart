@@ -274,4 +274,224 @@ void main() {
       expect(cached!.title, equals('Remote Mission'));
     });
   });
+
+  group('Phase 4 — Execute, Artifacts, Content Tests', () {
+    test('executeMission parses completed mission with steps', () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final config = ApiConfig(prefs);
+
+      final completedMission = {
+        'id': 'msn_exec_01',
+        'goal': 'Launch campaign for Tusk.ai',
+        'title': 'Launch Campaign',
+        'status': 'completed',
+        'approved_by_user': true,
+        'plan': {
+          'steps': [
+            {
+              'id': 'msn_exec_01_step_1',
+              'title': 'Marketing strategy',
+              'description': 'Define target audience',
+              'depends_on': [],
+              'status': 'completed',
+              'expected_output': 'Strategy doc',
+              'result_text': 'Strategy created successfully.',
+            }
+          ]
+        },
+        'clarifications': [],
+        'artifacts': [
+          {
+            'id': 'art_abc123',
+            'mission_id': 'msn_exec_01',
+            'step_id': 'msn_exec_01_step_1',
+            'media_type': 'text/markdown',
+            'name': 'launch_campaign_deliverables.md',
+            'size_bytes': 9802,
+            'url': null,
+            'created_at': DateTime.now().toIso8601String(),
+          }
+        ],
+        'result_summary': 'Campaign deliverables ready.',
+        'created_at': DateTime.now().toIso8601String(),
+        'updated_at': DateTime.now().toIso8601String(),
+      };
+
+      final client = ApiClient(
+        config: config,
+        httpClient: MockClient((req) async => http.Response(
+          jsonEncode(completedMission),
+          200,
+          headers: {'content-type': 'application/json'},
+        )),
+      );
+
+      final service = MissionApiService(client);
+      final mission = await service.executeMission('msn_exec_01');
+
+      expect(mission.id, equals('msn_exec_01'));
+      expect(mission.status, equals(MissionStatus.completed));
+      expect(mission.steps.first.status, equals(StepStatus.completed));
+      expect(mission.steps.first.resultText, equals('Strategy created successfully.'));
+      expect(mission.artifacts.length, equals(1));
+      expect(mission.artifacts.first.name, equals('launch_campaign_deliverables.md'));
+      expect(mission.artifacts.first.sizeBytes, equals(9802));
+      expect(mission.resultSummary, equals('Campaign deliverables ready.'));
+    });
+
+    test('listArtifacts returns parsed artifact list', () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final config = ApiConfig(prefs);
+
+      final artifactList = {
+        'artifacts': [
+          {
+            'id': 'art_111',
+            'mission_id': 'msn_001',
+            'step_id': null,
+            'media_type': 'text/markdown',
+            'name': 'report.md',
+            'size_bytes': 1024,
+            'url': null,
+            'created_at': DateTime.now().toIso8601String(),
+          }
+        ]
+      };
+
+      final client = ApiClient(
+        config: config,
+        httpClient: MockClient((req) async => http.Response(
+          jsonEncode(artifactList),
+          200,
+          headers: {'content-type': 'application/json'},
+        )),
+      );
+
+      final service = MissionApiService(client);
+      final artifacts = await service.listArtifacts('msn_001');
+
+      expect(artifacts.length, equals(1));
+      expect(artifacts.first.id, equals('art_111'));
+      expect(artifacts.first.name, equals('report.md'));
+      expect(artifacts.first.sizeBytes, equals(1024));
+    });
+
+    test('getArtifactContent returns plain text body', () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final config = ApiConfig(prefs);
+
+      const markdownBody = '# Campaign\n\nThis is the content.';
+
+      final client = ApiClient(
+        config: config,
+        httpClient: MockClient((req) async => http.Response(
+          markdownBody,
+          200,
+          headers: {'content-type': 'text/plain; charset=utf-8'},
+        )),
+      );
+
+      final service = MissionApiService(client);
+      final content = await service.getArtifactContent('art_111');
+
+      expect(content, equals(markdownBody));
+    });
+
+    test('MissionRepository.executeMission delegates to apiService and caches result', () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final config = ApiConfig(prefs);
+
+      // Pre-seed a local mission with a conversationId to verify it is preserved.
+      final existingMission = Mission(
+        id: 'msn_repo_exec',
+        objective: 'Exec test',
+        title: 'Exec Test',
+        conversationId: 'conv_preserved',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+        status: MissionStatus.approved,
+      );
+
+      final repo = MissionRepository(prefs);
+      await repo.saveMission(existingMission);
+
+      final completedPayload = {
+        'id': 'msn_repo_exec',
+        'goal': 'Exec test',
+        'title': 'Exec Test',
+        'status': 'completed',
+        'approved_by_user': true,
+        'plan': {'steps': []},
+        'clarifications': [],
+        'artifacts': [
+          {
+            'id': 'art_repo_1',
+            'mission_id': 'msn_repo_exec',
+            'step_id': null,
+            'media_type': 'text/markdown',
+            'name': 'output.md',
+            'size_bytes': 512,
+            'url': null,
+            'created_at': DateTime.now().toIso8601String(),
+          }
+        ],
+        'result_summary': 'Done.',
+        'created_at': DateTime.now().toIso8601String(),
+        'updated_at': DateTime.now().toIso8601String(),
+      };
+
+      final artifactsPayload = {
+        'artifacts': [
+          {
+            'id': 'art_repo_1',
+            'mission_id': 'msn_repo_exec',
+            'step_id': null,
+            'media_type': 'text/markdown',
+            'name': 'output.md',
+            'size_bytes': 512,
+            'url': null,
+            'created_at': DateTime.now().toIso8601String(),
+          }
+        ]
+      };
+
+      final client = ApiClient(
+        config: config,
+        httpClient: MockClient((req) async {
+          if (req.url.path.endsWith('/artifacts')) {
+            return http.Response(
+              jsonEncode(artifactsPayload),
+              200,
+              headers: {'content-type': 'application/json'},
+            );
+          }
+          return http.Response(
+            jsonEncode(completedPayload),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }),
+      );
+
+      final repoWithApi = MissionRepository(prefs, apiService: MissionApiService(client));
+      // Save the seeded mission into this new repo instance too
+      await repoWithApi.saveMission(existingMission);
+
+      final updated = await repoWithApi.executeMission('msn_repo_exec');
+
+      expect(updated, isNotNull);
+      expect(updated!.status, equals(MissionStatus.completed));
+      expect(updated.conversationId, equals('conv_preserved'));
+      expect(updated.artifacts.length, equals(1));
+      expect(updated.artifacts.first.name, equals('output.md'));
+
+      // Verify the result was persisted in local cache
+      final cached = repoWithApi.loadMission('msn_repo_exec');
+      expect(cached?.status, equals(MissionStatus.completed));
+    });
+  });
 }

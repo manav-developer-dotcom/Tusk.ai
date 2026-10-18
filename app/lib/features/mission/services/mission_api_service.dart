@@ -66,6 +66,28 @@ class MissionApiService {
     return _parseMission(res as Map<String, dynamic>);
   }
 
+  /// Execute an approved mission with real backend tool execution.
+  Future<Mission> executeMission(String missionId) async {
+    final res = await client.post('/v1/missions/$missionId/execute');
+    return _parseMission(res as Map<String, dynamic>);
+  }
+
+  /// List persistent deliverable artifacts generated for a mission.
+  Future<List<MissionArtifact>> listArtifacts(String missionId) async {
+    final res = await client.get('/v1/missions/$missionId/artifacts');
+    if (res is Map<String, dynamic> && res.containsKey('artifacts')) {
+      final list = res['artifacts'] as List<dynamic>;
+      return list.map((a) => MissionArtifact.fromMap(a as Map<String, dynamic>)).toList();
+    }
+    return [];
+  }
+
+  /// Download the text content of a generated artifact deliverable.
+  Future<String> getArtifactContent(String artifactId) async {
+    final res = await client.get('/v1/artifacts/$artifactId/content');
+    return res?.toString() ?? '';
+  }
+
   /// Cancel an in-progress or planned mission.
   Future<Mission> cancelMission(String missionId, [String reason = 'Cancelled by user.']) async {
     final res = await client.post(
@@ -132,6 +154,11 @@ class MissionApiService {
       _ => MissionStatus.draft,
     };
 
+    final rawArtifacts = (map['artifacts'] as List<dynamic>?) ?? [];
+    final artifacts = rawArtifacts.map((a) {
+      return MissionArtifact.fromMap(a as Map<String, dynamic>);
+    }).toList();
+
     return Mission(
       id: map['id'] as String,
       objective: (map['goal'] as String?) ?? (map['objective'] as String? ?? ''),
@@ -139,6 +166,7 @@ class MissionApiService {
       status: status,
       steps: steps,
       clarifications: clarifications,
+      artifacts: artifacts,
       resultSummary: map['result_summary'] as String?,
       failureReason: map['failure_reason'] as String?,
       createdAt: map['created_at'] != null

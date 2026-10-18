@@ -165,6 +165,61 @@ class ClarificationQuestion {
 }
 
 // ─────────────────────────────────────────────────────────
+// Artifact model
+// ─────────────────────────────────────────────────────────
+
+/// A verified deliverable artifact generated during mission execution.
+class MissionArtifact {
+  final String id;
+  final String missionId;
+  final String? stepId;
+  final String mediaType;
+  final String name;
+  final int sizeBytes;
+  final String? url;
+  final DateTime createdAt;
+
+  MissionArtifact({
+    required this.id,
+    required this.missionId,
+    this.stepId,
+    required this.mediaType,
+    required this.name,
+    required this.sizeBytes,
+    this.url,
+    required this.createdAt,
+  });
+
+  factory MissionArtifact.fromMap(Map<String, dynamic> map) {
+    return MissionArtifact(
+      id: map['id'] as String,
+      missionId: (map['mission_id'] ?? map['missionId'] ?? '') as String,
+      stepId: (map['step_id'] ?? map['stepId']) as String?,
+      mediaType: (map['media_type'] ?? map['mediaType'] ?? 'text/markdown') as String,
+      name: (map['name'] as String?) ?? 'deliverable.md',
+      sizeBytes: (map['size_bytes'] ?? map['sizeBytes'] ?? 0) as int,
+      url: map['url'] as String?,
+      createdAt: map['created_at'] != null
+          ? DateTime.parse(map['created_at'] as String)
+          : (map['createdAt'] != null
+              ? DateTime.parse(map['createdAt'] as String)
+              : DateTime.now()),
+    );
+  }
+
+  Map<String, dynamic> toMap() => {
+        'id': id,
+        'mission_id': missionId,
+        'step_id': stepId,
+        'media_type': mediaType,
+        'name': name,
+        'size_bytes': sizeBytes,
+        'url': url,
+        'created_at': createdAt.toIso8601String(),
+      };
+}
+
+// ─────────────────────────────────────────────────────────
 // Mission model
 // ─────────────────────────────────────────────────────────
 
@@ -193,6 +248,9 @@ class Mission {
   /// Clarification questions; populated when status is [MissionStatus.needsClarification].
   final List<ClarificationQuestion> clarifications;
 
+  /// Persistent deliverable artifacts generated during execution.
+  List<MissionArtifact> artifacts;
+
   /// High-level summary of results once completed or partially completed.
   String? resultSummary;
 
@@ -213,13 +271,15 @@ class Mission {
     this.status = MissionStatus.draft,
     List<MissionStep>? steps,
     List<ClarificationQuestion>? clarifications,
+    List<MissionArtifact>? artifacts,
     this.resultSummary,
     this.failureReason,
     required this.createdAt,
     required this.updatedAt,
     this.approvedByUser = false,
   })  : steps = steps ?? [],
-        clarifications = clarifications ?? [];
+        clarifications = clarifications ?? [],
+        artifacts = artifacts ?? [];
 
   // ── State machine ──────────────────────────────────────
 
@@ -286,6 +346,7 @@ class Mission {
       'status': status.name,
       'steps': steps.map((s) => s.toMap()).toList(),
       'clarifications': clarifications.map((q) => q.toMap()).toList(),
+      'artifacts': artifacts.map((a) => a.toMap()).toList(),
       'resultSummary': resultSummary,
       'failureReason': failureReason,
       'createdAt': createdAt.toIso8601String(),
@@ -310,6 +371,10 @@ class Mission {
           [],
       clarifications: (map['clarifications'] as List<dynamic>?)
               ?.map((q) => ClarificationQuestion.fromMap(q as Map<String, dynamic>))
+              .toList() ??
+          [],
+      artifacts: (map['artifacts'] as List<dynamic>?)
+              ?.map((a) => MissionArtifact.fromMap(a as Map<String, dynamic>))
               .toList() ??
           [],
       resultSummary: map['resultSummary'] as String?,

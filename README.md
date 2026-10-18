@@ -43,7 +43,7 @@ Tusk.ai is a startup-oriented AI action assistant that turns a user's intent int
 - **Phase 1 (App Shell & Branding):** Completed. Monochrome design tokens, cold-launch wordmark shine, navigation, history sidebar, and local APK build workflow.
 - **Phase 2 (Core Mission UX):** Completed. Natural-language goal intake, interactive clarification, isolated rule-based local planner adapter, plan review & approval flow, explicit mission state machine, and persistence.
 - **Phase 3 (Backend Foundation & Task Persistence):** Completed. FastAPI/Python backend service with SQLite persistence, session isolation, plan generation, structured errors, correlation tracing, and Flutter client API integration.
-- **Phase 4 (Real AI Tools & Execution Engine):** Next phase. Provider adapters, real execution records, and artifact storage.
+- **Phase 4 (Real AI Planning & Task Execution):** Completed. Real Gemini API integration (`gemini-3.8-flash`) for AI mission planning, backend execution engine with allowlisted tools, persistent artifact storage, and full Flutter UI for execution and deliverable viewing.
 
 ## Usability and interaction principles
 

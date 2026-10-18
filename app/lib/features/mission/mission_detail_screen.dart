@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../core/theme/tusk_theme.dart';
 import '../mission/models/mission.dart';
@@ -10,15 +11,22 @@ import '../mission/models/mission.dart';
 ///
 /// Actions available per state:
 ///   readyForApproval → Approve Plan / Cancel
-///   approved         → (future Phase 3: Start execution)
-///   failed           → Retry (returns to readyForApproval)
+///   approved         → Execute Mission / Cancel
 ///   running          → Cancel
-///   completed/cancelled → read-only view
+///   failed           → Retry (returns to readyForApproval)
+///   completed        → read-only view with artifact downloads
+///   cancelled        → read-only view
 class MissionDetailScreen extends StatelessWidget {
   final Mission mission;
   final VoidCallback? onApprove;
   final VoidCallback? onCancel;
   final VoidCallback? onRetry;
+
+  /// Triggered when the user taps "Execute Mission" on an approved mission.
+  final VoidCallback? onExecute;
+
+  /// Called with an artifact ID; returns the artifact's text content.
+  final Future<String> Function(String artifactId)? onDownloadArtifact;
 
   const MissionDetailScreen({
     super.key,
@@ -26,6 +34,8 @@ class MissionDetailScreen extends StatelessWidget {
     this.onApprove,
     this.onCancel,
     this.onRetry,
+    this.onExecute,
+    this.onDownloadArtifact,
   });
 
   @override
@@ -105,6 +115,25 @@ class MissionDetailScreen extends StatelessWidget {
               const SizedBox(height: 24),
             ],
 
+            // ── Deliverables / Artifacts ───────────────────────────────
+            if (mission.artifacts.isNotEmpty) ...[
+              _SectionHeader(label: 'DELIVERABLES', textMuted: textMuted),
+              const SizedBox(height: 8),
+              ...mission.artifacts.map((artifact) => _ArtifactTile(
+                    artifact: artifact,
+                    textPrimary: textPrimary,
+                    textSecondary: textSecondary,
+                    textMuted: textMuted,
+                    surfaceBg: surfaceBg,
+                    border: border,
+                    onTap: onDownloadArtifact != null
+                        ? () => _showArtifactSheet(context, artifact, isDark,
+                            textPrimary, textSecondary, textMuted, surfaceBg, border)
+                        : null,
+                  )),
+              const SizedBox(height: 24),
+            ],
+
             // ── Result summary ─────────────────────────────────────────
             if (mission.resultSummary != null) ...[
               _SectionHeader(label: 'RESULT', textMuted: textMuted),
@@ -160,6 +189,7 @@ class MissionDetailScreen extends StatelessWidget {
               onApprove: onApprove,
               onCancel: onCancel,
               onRetry: onRetry,
+              onExecute: onExecute,
               isDark: isDark,
             ),
 
@@ -173,6 +203,36 @@ class MissionDetailScreen extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showArtifactSheet(
+    BuildContext context,
+    MissionArtifact artifact,
+    bool isDark,
+    Color textPrimary,
+    Color textSecondary,
+    Color textMuted,
+    Color surfaceBg,
+    Color border,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: surfaceBg,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => _ArtifactSheet(
+        artifact: artifact,
+        isDark: isDark,
+        textPrimary: textPrimary,
+        textSecondary: textSecondary,
+        textMuted: textMuted,
+        surfaceBg: surfaceBg,
+        border: border,
+        onDownload: onDownloadArtifact,
       ),
     );
   }
@@ -396,11 +456,260 @@ class _StepTile extends StatelessWidget {
   }
 }
 
+/// Tile representing a generated deliverable artifact.
+class _ArtifactTile extends StatelessWidget {
+  final MissionArtifact artifact;
+  final Color textPrimary;
+  final Color textSecondary;
+  final Color textMuted;
+  final Color surfaceBg;
+  final Color border;
+  final VoidCallback? onTap;
+
+  const _ArtifactTile({
+    required this.artifact,
+    required this.textPrimary,
+    required this.textSecondary,
+    required this.textMuted,
+    required this.surfaceBg,
+    required this.border,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final kb = (artifact.sizeBytes / 1024).toStringAsFixed(1);
+    return GestureDetector(
+      key: Key('artifact_tile_${artifact.id}'),
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: surfaceBg,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: border),
+        ),
+        child: Row(
+          children: [
+            Icon(LucideIcons.fileText, size: 18, color: textSecondary),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    artifact.name,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${artifact.mediaType}  ·  $kb KB',
+                    style: TextStyle(fontSize: 12, color: textMuted),
+                  ),
+                ],
+              ),
+            ),
+            if (onTap != null)
+              Icon(LucideIcons.externalLink, size: 16, color: textMuted),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Bottom sheet that loads and displays artifact content with copy action.
+class _ArtifactSheet extends StatefulWidget {
+  final MissionArtifact artifact;
+  final bool isDark;
+  final Color textPrimary;
+  final Color textSecondary;
+  final Color textMuted;
+  final Color surfaceBg;
+  final Color border;
+  final Future<String> Function(String artifactId)? onDownload;
+
+  const _ArtifactSheet({
+    required this.artifact,
+    required this.isDark,
+    required this.textPrimary,
+    required this.textSecondary,
+    required this.textMuted,
+    required this.surfaceBg,
+    required this.border,
+    this.onDownload,
+  });
+
+  @override
+  State<_ArtifactSheet> createState() => _ArtifactSheetState();
+}
+
+class _ArtifactSheetState extends State<_ArtifactSheet> {
+  String? _content;
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadContent();
+  }
+
+  Future<void> _loadContent() async {
+    if (widget.onDownload == null) {
+      setState(() {
+        _error = 'Content unavailable — backend not connected.';
+        _loading = false;
+      });
+      return;
+    }
+    try {
+      final text = await widget.onDownload!(widget.artifact.id);
+      if (mounted) {
+        setState(() {
+          _content = text;
+          _loading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = 'Could not load content. Please try again.';
+          _loading = false;
+        });
+      }
+    }
+  }
+
+  void _copyToClipboard() {
+    if (_content == null) return;
+    Clipboard.setData(ClipboardData(text: _content!));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Content copied to clipboard.'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final screenHeight = MediaQuery.of(context).size.height;
+    return Container(
+      constraints: BoxConstraints(maxHeight: screenHeight * 0.85),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Handle bar
+          Center(
+            child: Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: widget.border,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          // Header
+          Row(
+            children: [
+              Icon(LucideIcons.fileText, size: 18, color: widget.textSecondary),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  widget.artifact.name,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: widget.textPrimary,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              if (_content != null)
+                IconButton(
+                  key: const Key('artifact_copy_button'),
+                  icon: Icon(LucideIcons.copy, size: 18, color: widget.textSecondary),
+                  tooltip: 'Copy content',
+                  onPressed: _copyToClipboard,
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Divider(color: widget.border, height: 1),
+          const SizedBox(height: 12),
+          // Content area
+          Flexible(
+            child: _loading
+                ? Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: widget.textSecondary,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Loading deliverable...',
+                          style: TextStyle(
+                              fontSize: 13, color: widget.textSecondary),
+                        ),
+                      ],
+                    ),
+                  )
+                : _error != null
+                    ? Row(
+                        children: [
+                          Icon(LucideIcons.alertCircle,
+                              size: 16, color: widget.textSecondary),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _error!,
+                              style: TextStyle(
+                                  fontSize: 13, color: widget.textSecondary),
+                            ),
+                          ),
+                        ],
+                      )
+                    : SingleChildScrollView(
+                        child: SelectableText(
+                          _content ?? '',
+                          style: TextStyle(
+                            fontSize: 13,
+                            height: 1.55,
+                            color: widget.textPrimary,
+                            fontFamily: 'monospace',
+                          ),
+                        ),
+                      ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ActionArea extends StatelessWidget {
   final Mission mission;
   final VoidCallback? onApprove;
   final VoidCallback? onCancel;
   final VoidCallback? onRetry;
+  final VoidCallback? onExecute;
   final bool isDark;
 
   const _ActionArea({
@@ -408,6 +717,7 @@ class _ActionArea extends StatelessWidget {
     this.onApprove,
     this.onCancel,
     this.onRetry,
+    this.onExecute,
     required this.isDark,
   });
 
@@ -458,35 +768,40 @@ class _ActionArea extends StatelessWidget {
         );
 
       case MissionStatus.approved:
-        return Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: isDark ? TuskColors.darkSurface : TuskColors.lightSurface,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-                color: isDark ? TuskColors.darkBorder : TuskColors.lightBorder),
-          ),
-          child: Row(
-            children: [
-              Icon(LucideIcons.clock, size: 18,
-                  color: isDark
-                      ? TuskColors.darkTextSecondary
-                      : TuskColors.lightTextSecondary),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  'Plan approved. Execution will be available in Phase 3 when the backend is connected.',
-                  style: TextStyle(
-                    fontSize: 13,
-                    height: 1.4,
-                    color: isDark
-                        ? TuskColors.darkTextSecondary
-                        : TuskColors.lightTextSecondary,
-                  ),
-                ),
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            FilledButton.icon(
+              key: const Key('mission_execute_button'),
+              onPressed: onExecute,
+              icon: const Icon(LucideIcons.play, size: 18),
+              label: const Text('Execute Mission',
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+              style: FilledButton.styleFrom(
+                backgroundColor: primaryBg,
+                foregroundColor: primaryFg,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
               ),
-            ],
-          ),
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton(
+              key: const Key('mission_cancel_approved_button'),
+              onPressed: onCancel,
+              style: OutlinedButton.styleFrom(
+                side: BorderSide(color: border),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+              ),
+              child: Text('Cancel',
+                  style: TextStyle(
+                      color: textPrimary,
+                      fontWeight: FontWeight.w500,
+                      fontSize: 15)),
+            ),
+          ],
         );
 
       case MissionStatus.running:

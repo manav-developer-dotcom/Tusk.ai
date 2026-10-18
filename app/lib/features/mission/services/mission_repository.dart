@@ -242,4 +242,50 @@ class MissionRepository {
       return loadMissions();
     }
   }
+
+  /// Execute an approved mission on the backend, update steps, and cache deliverables.
+  Future<Mission?> executeMission(String missionId) async {
+    if (apiService != null) {
+      final updated = await apiService!.executeMission(missionId);
+      final existing = loadMission(missionId);
+      if (existing?.conversationId != null) {
+        updated.conversationId = existing!.conversationId;
+      }
+      // Also fetch and attach artifacts
+      try {
+        final artifacts = await apiService!.listArtifacts(missionId);
+        updated.artifacts = artifacts;
+      } catch (_) {}
+
+      await saveMission(updated);
+      return updated;
+    }
+    return null;
+  }
+
+  /// Retrieve persistent artifacts associated with a mission.
+  Future<List<MissionArtifact>> fetchArtifacts(String missionId) async {
+    if (apiService != null) {
+      try {
+        final artifacts = await apiService!.listArtifacts(missionId);
+        final existing = loadMission(missionId);
+        if (existing != null) {
+          existing.artifacts = artifacts;
+          await saveMission(existing);
+        }
+        return artifacts;
+      } catch (_) {
+        return loadMission(missionId)?.artifacts ?? [];
+      }
+    }
+    return loadMission(missionId)?.artifacts ?? [];
+  }
+
+  /// Download the text content of a deliverable artifact.
+  Future<String> getArtifactContent(String artifactId) async {
+    if (apiService != null) {
+      return apiService!.getArtifactContent(artifactId);
+    }
+    return '';
+  }
 }

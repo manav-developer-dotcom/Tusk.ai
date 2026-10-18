@@ -2,14 +2,20 @@ import time
 import uuid
 import sqlite3
 from typing import Any
+from ..config import settings
 from ..database.repository import MissionRepository
 from ..models.domain import MissionStatus, StepStatus, can_transition
 from ..models.schemas import (
+    ArtifactItem,
+    ArtifactListResponse,
     MissionListResponse,
     MissionResponse,
     MissionStatusResponse,
     StepStateItem,
 )
+from .ai_planner import AIPlannerService
+from .execution_engine import ExecutionEngine
+from .llm_provider import GeminiProvider, LLMProvider
 from .planner import RuleBasedPlannerService
 
 
@@ -51,56 +57,58 @@ class InvalidStateTransitionError(MissionServiceException):
 # ─────────────────────────────────────────────────────────────────────────────
 
 class MissionService:
-    """Core domain application service coordinating planning and state persistence."""
+    """Core domain application service coordinating planning, execution, and state persistence."""
 
-    def __init__(self, conn: sqlite3.Connection):
-        self.repo = MissionRepository(conn)
+    def __init__(
+        self,
+        conn: sqlite3.Connection,
+        provider: LLMProvider | None = None,
+        planner: AIPlannerService | None = None,
+    ):
         self.conn = conn
+        self.repo = MissionRepository(conn)
+        self.provider = provider or GeminiProvider(settings.gemini_api_key, model=settings.gemini_model)
+        self.planner = planner or AIPlannerService(self.provider, model_name=settings.gemini_model)
 
-    def create_mission(
+    async def create_mission(
         self,
         session_id: str,
         goal: str,
         context: dict[str, Any] | None = None,
         client_request_id: str | None = None,
     ) -> MissionResponse:
-        """Create a new mission with an automatically generated plan or clarification state."""
+        """Create a new mission with Gemini AI generated plan or clarification state."""
         # 1. Idempotency check
         if client_request_id:
             existing = self.repo.find_by_client_request_id(session_id, client_request_id)
             if existing:
                 return existing
 
-        # 2. Identifier and Title
+        # 2. Identifier
         ts = int(time.time() * 1000)
         random_suffix = uuid.uuid4().hex[:6]
         mission_id = f"mission_{ts}_{random_suffix}"
-
         clean_goal = goal.strip()
-        title = clean_goal[:60] + ("..." if len(clean_goal) > 60 else "")
 
-        # 3. Planning & Clarification Assessment
-        steps: list[dict[str, Any]] = []
-        clarifications: list[dict[str, Any]] = []
-
-        if RuleBasedPlannerService.needs_clarification(clean_goal):
-            status = MissionStatus.NEEDS_CLARIFICATION
-            clarifications = RuleBasedPlannerService.generate_clarifications(mission_id, clean_goal)
-        else:
-            status = MissionStatus.READY_FOR_APPROVAL
-            steps = RuleBasedPlannerService.generate_plan(mission_id, clean_goal)
+        # 3. AI Planning & Clarification Assessment
+        plan_result = await self.planner.plan(mission_id, clean_goal, context)
+        status = (
+            MissionStatus.NEEDS_CLARIFICATION
+            if plan_result.needs_clarification
+            else MissionStatus.READY_FOR_APPROVAL
+        )
 
         # 4. Atomic persistence
         return self.repo.create_mission(
             mission_id=mission_id,
             session_id=session_id,
             goal=clean_goal,
-            title=title,
+            title=plan_result.title,
             status=status,
             client_request_id=client_request_id,
             context=context,
-            steps=steps,
-            clarifications=clarifications,
+            steps=plan_result.steps,
+            clarifications=plan_result.clarifications,
         )
 
     def get_mission(self, session_id: str, mission_id: str) -> MissionResponse:
@@ -132,6 +140,15 @@ class MissionService:
         assert updated is not None
         return updated
 
+    async def execute_mission(self, session_id: str, mission_id: str) -> MissionResponse:
+        """Execute an approved mission using allowlisted backend tools and generate deliverables."""
+        mission = self.get_mission(session_id, mission_id)
+        if mission.status not in (MissionStatus.APPROVED, MissionStatus.RUNNING):
+            raise InvalidStateTransitionError(mission.status, MissionStatus.RUNNING)
+
+        engine = ExecutionEngine(self.conn, self.provider)
+        return await engine.execute_mission(session_id, mission_id)
+
     def cancel_mission(
         self, session_id: str, mission_id: str, reason: str = "Cancelled by user."
     ) -> MissionResponse:
@@ -150,10 +167,20 @@ class MissionService:
         return updated
 
     def retry_mission(self, session_id: str, mission_id: str) -> MissionResponse:
-        """Retry a failed mission by transitioning it back to readyForApproval."""
+        """Retry a failed mission by resetting steps to pending and returning state to readyForApproval."""
         mission = self.get_mission(session_id, mission_id)
         if not can_transition(mission.status, MissionStatus.READY_FOR_APPROVAL):
             raise InvalidStateTransitionError(mission.status, MissionStatus.READY_FOR_APPROVAL)
+
+        # Reset failed steps to pending
+        for step in mission.plan.steps:
+            if step.status == StepStatus.FAILED:
+                self.repo.update_step_status(
+                    mission_id=mission_id,
+                    step_id=step.id,
+                    status=StepStatus.PENDING,
+                    error_message=None,
+                )
 
         updated = self.repo.update_status(
             session_id=session_id,
@@ -186,3 +213,21 @@ class MissionService:
             is_terminal=is_terminal,
             updated_at=mission.updated_at,
         )
+
+    def list_artifacts(self, session_id: str, mission_id: str) -> ArtifactListResponse:
+        """List persistent result artifacts generated for a mission."""
+        self.get_mission(session_id, mission_id)
+        artifacts = self.repo.list_artifacts(session_id, mission_id)
+        return ArtifactListResponse(artifacts=artifacts, total=len(artifacts))
+
+    def get_artifact(self, session_id: str, artifact_id: str) -> tuple[ArtifactItem, str]:
+        """Retrieve artifact item metadata and local file path ensuring session isolation."""
+        res = self.repo.get_artifact(session_id, artifact_id)
+        if not res:
+            raise MissionServiceException(
+                code="ARTIFACT_NOT_FOUND",
+                message=f"Artifact '{artifact_id}' was not found or belongs to another session.",
+                status_code=404,
+                retryable=False,
+            )
+        return res

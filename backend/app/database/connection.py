@@ -45,10 +45,25 @@ CREATE TABLE IF NOT EXISTS clarification_questions (
     FOREIGN KEY (mission_id) REFERENCES missions(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS artifacts (
+    id TEXT PRIMARY KEY,
+    mission_id TEXT NOT NULL,
+    step_id TEXT,
+    session_id TEXT NOT NULL,
+    media_type TEXT NOT NULL,
+    name TEXT NOT NULL,
+    file_path TEXT NOT NULL,
+    size_bytes INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (mission_id) REFERENCES missions(id) ON DELETE CASCADE
+);
+
 CREATE INDEX IF NOT EXISTS idx_missions_session ON missions(session_id, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_missions_client_req ON missions(session_id, client_request_id);
 CREATE INDEX IF NOT EXISTS idx_steps_mission ON mission_steps(mission_id, step_order ASC);
 CREATE INDEX IF NOT EXISTS idx_clarifications_mission ON clarification_questions(mission_id, question_order ASC);
+CREATE INDEX IF NOT EXISTS idx_artifacts_mission ON artifacts(mission_id, created_at ASC);
+CREATE INDEX IF NOT EXISTS idx_artifacts_session ON artifacts(session_id);
 """
 
 
