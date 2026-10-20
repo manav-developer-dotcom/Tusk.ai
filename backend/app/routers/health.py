@@ -1,5 +1,7 @@
 from datetime import datetime, timezone
+from typing import Any
 from fastapi import APIRouter
+from ..config import settings
 from ..database.connection import get_db_connection
 
 
@@ -7,7 +9,7 @@ router = APIRouter(tags=["Health"])
 
 
 @router.get("/health", summary="Liveness and readiness check")
-def get_health() -> dict[str, str]:
+def get_health() -> dict[str, Any]:
     """Return service health status and verify database connectivity."""
     db_status = "connected"
     try:
@@ -20,5 +22,11 @@ def get_health() -> dict[str, str]:
         "status": "healthy" if db_status == "connected" else "degraded",
         "version": "0.1.0",
         "database": db_status,
+        "agent": {
+            "enabled": settings.agent_enabled,
+            "name": settings.agent_name,
+            "port": settings.agent_port,
+        },
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
+

@@ -69,3 +69,20 @@ Use this file to record durable decisions. Add a date, context, decision, conseq
   4. Updated `DEVELOPMENT.md` with verified environment versions and commands.
 - Consequences: Environment is unblocked for Phase 3 without architecture drift or tech stack rework.
 
+
+### 2026-10-21 — Phase 5: External Agent Interoperability via uAgents (Fetch.ai)
+- Status: Accepted
+- Context: Phase 5 required an external agent protocol adapter that shared all backend capabilities with the Android app. The documented Phase 2.5 decision selected Python/FastAPI specifically to enable `uagents` interoperability.
+- Decision:
+  1. Implemented `backend/app/agent/` package with typed `uagents` message models (`messages.py`), protocol handlers (`protocol.py`), and agent factory/runner (`agent.py`).
+  2. All five protocol operations (create, approve, execute, status, list artifacts, read artifact content) route through the shared `MissionService` — same planning, approval gate, execution engine, and SQLite persistence as the Android app.
+  3. External agent sender addresses are mapped to isolated `agent:<address>` session IDs, preserving the same ownership boundary as HTTP session isolation.
+  4. Protocol name `tusk_mission_protocol` version `1.0.0` — deterministic for Agentverse registration when a mailbox key is configured.
+  5. Agent runs as a separate process from FastAPI (port 8001 default). FastAPI health endpoint now reports agent config.
+  6. 9 automated unit/integration tests cover all handlers, approval gate enforcement, session isolation, and idempotency. No real Gemini calls in tests.
+- Alternatives considered:
+  - REST-only wrapper: Rejected — would duplicate business logic and circumvent approval gates.
+  - Embedding agent inside FastAPI process: Possible but creates event loop conflicts; separate process is cleaner.
+- Consequences: Any Fetch.ai/Agentverse discovery requires `TUSK_AGENT_MAILBOX_KEY` to be set. LAN mode works without a key for local testing.
+- Follow-up: Phase 6 — real account lifecycle, authentication, rate limits, and deployment hardening.
+

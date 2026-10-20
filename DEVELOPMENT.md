@@ -8,6 +8,7 @@
 - **Phase 2.5 (Pre-Backend Environment & Repository Foundation):** Completed. Git version control initialized, clean baseline commit created, Python 3.12.10 installed & verified, and Phase 3 API contract audited.
 - **Phase 3 (Backend Foundation & Task Persistence):** Completed. FastAPI/Python 3.12 backend implemented under `backend/` with SQLite persistence across restarts, session isolation, plan generation, structured errors, correlation tracing, and Flutter client API integration with platform-aware URL routing.
 - **Phase 4 (Real AI Planning & Task Execution):** Completed. Real Gemini API integration (`gemini-3.8-flash`) for structured mission planning, single-question clarification, backend execution engine with allowlisted tools (`marketing_strategy`, `copywriter`, `content_planner`, `deliverable_packager`, `generic_writer`), persistent artifact storage, and full Flutter UI for execution and deliverable viewing.
+- **Phase 5 (External Agent Interoperability):** Completed. Thin uAgents (Fetch.ai) protocol adapter implemented under `backend/app/agent/`. The adapter maps external agent cryptographic addresses to isolated session IDs and routes all requests through the shared `MissionService` (same planning, approval gate, execution engine, and artifact persistence as the Android app). 9 automated adapter tests pass covering protocol metadata, blank-goal rejection, structured planning, clarification, approval-gate enforcement, full create→approve→execute→artifact workflow, cross-agent session isolation, and idempotency.
 
 ## Verified Environment & Prerequisites
 
@@ -34,7 +35,7 @@ cd backend
   pip install -r requirements.txt
   ```
 
-- **Run backend test suite (26 automated tests):**
+- **Run backend test suite (35 automated tests):**
   ```powershell
   .venv\Scripts\pytest tests -v
   ```
@@ -48,6 +49,15 @@ cd backend
   ```
   Without a key the backend falls back to the rule-based dev adapter (labelled in the UI).
 
+- **Configure external agent settings (optional):**
+  ```powershell
+  # In backend/.env, set optional agent config:
+  # TUSK_AGENT_NAME=tusk_action_agent
+  # TUSK_AGENT_PORT=8001
+  # TUSK_AGENT_SEED="your secret mnemonic phrase"   # for deterministic address
+  # TUSK_AGENT_MAILBOX_KEY="your_mailbox_api_key"  # for Agentverse cloud discovery
+  ```
+
 - **Start backend server locally:**
   ```powershell
   .venv\Scripts\python run.py
@@ -55,6 +65,21 @@ cd backend
   # .venv\Scripts\uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
   ```
   Health check is accessible at: `http://127.0.0.1:8000/health`
+  The health response also includes agent adapter status (`agent.enabled`, `agent.name`, `agent.port`).
+
+- **Start external agent service (separate process from FastAPI):**
+  ```powershell
+  # Default (port 8001):
+  powershell -ExecutionPolicy Bypass -File scripts/start_agent.ps1
+  # Custom port/name:
+  powershell -ExecutionPolicy Bypass -File scripts/start_agent.ps1 -AgentPort 8002 -AgentName my_tusk_agent
+  ```
+  Agent address is logged on startup. See `backend/app/agent/` for protocol message schemas.
+
+- **Run backend test suite (35 automated tests):**
+  ```powershell
+  .venv\Scripts\pytest tests -v
+  ```
 
 ### 2. Flutter Client Verification
 Navigate to `app/`:

@@ -26,6 +26,39 @@ class Settings(BaseSettings):
         description="Supported, cost-effective Gemini model identifier"
     )
 
+    # External Agent Interoperability (uAgents / Fetch.ai)
+    agent_enabled: bool = Field(
+        default=True,
+        validation_alias=AliasChoices("AGENT_ENABLED", "TUSK_AGENT_ENABLED"),
+        description="Enable or disable uAgents external interoperability adapter"
+    )
+    agent_name: str = Field(
+        default="tusk_action_agent",
+        validation_alias=AliasChoices("AGENT_NAME", "TUSK_AGENT_NAME"),
+        description="Public discovery name for the Tusk.ai external agent"
+    )
+    agent_seed: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("AGENT_SEED", "TUSK_AGENT_SEED"),
+        description="Mnemonic recovery seed for deterministic agent address generation"
+    )
+    agent_port: int = Field(
+        default=8001,
+        validation_alias=AliasChoices("AGENT_PORT", "TUSK_AGENT_PORT"),
+        description="Port for the external uAgents HTTP endpoint"
+    )
+    agent_endpoint: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("AGENT_ENDPOINT", "TUSK_AGENT_ENDPOINT"),
+        description="Public or LAN URL endpoint for the agent (e.g. http://127.0.0.1:8001/submit)"
+    )
+    agent_mailbox_key: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("AGENT_MAILBOX_KEY", "TUSK_AGENT_MAILBOX_KEY"),
+        description="Agentverse Mailbox API key for asynchronous cloud discovery and messaging"
+    )
+
+
     model_config = SettingsConfigDict(
         env_prefix="TUSK_",
         env_file=(str(Path(__file__).resolve().parent.parent / ".env"), ".env"),

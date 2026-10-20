@@ -1,0 +1,14 @@
+{
+    "test_agent": {
+        "identity_key": "315c094fe3f23a93d30d09d688d1dc050507b02fae74cfb8d4cc527d99efa568",
+        "wallet_key": "1pRBqJ/7GEHR8UV0AwC+7EafNn+xzFKMOXTd+tTE2E8="
+    },
+    "test": {
+        "identity_key": "1a3659f1da44424461ebb30361df3d279b8130720fbce6ffdd6378bda0fe6f1d",
+        "wallet_key": "3cFpn4y2B80WKcmDfw/dtTf8b8oMoFxct0+b1EIsVzw="
+    },
+    "tusk_test": {
+        "identity_key": "7454ab6537ea12da7331233ad99b5696b7fcd44855d84c85c4f3c50827e9bffb",
+        "wallet_key": "QA7B6GQApfgcwE0neGFZNpjKnWy//yJuzm1CvoZvYsM="
+    }
+}
