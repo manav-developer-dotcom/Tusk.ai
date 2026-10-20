@@ -9,6 +9,8 @@
 *.pem
 *.key
 *.p12
+# uAgents auto-generated agent private keys (never commit)
+private_keys.json
 
 # Flutter / Dart
 app/.dart_tool/
