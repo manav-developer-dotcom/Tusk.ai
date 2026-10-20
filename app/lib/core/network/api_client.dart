@@ -34,7 +34,7 @@ class ApiClient {
   ApiClient({
     required this.config,
     http.Client? httpClient,
-    this.timeout = const Duration(seconds: 10),
+    this.timeout = const Duration(seconds: 45),
   }) : _httpClient = httpClient ?? http.Client();
 
   Map<String, String> _headers([Map<String, String>? extra]) {
@@ -62,18 +62,19 @@ class ApiClient {
     return parsed;
   }
 
-  Future<dynamic> get(String path, {Map<String, dynamic>? queryParams}) async {
-    return _send(() => _httpClient.get(_uri(path, queryParams), headers: _headers()));
+  Future<dynamic> get(String path, {Map<String, dynamic>? queryParams, Duration? requestTimeout}) async {
+    return _send(() => _httpClient.get(_uri(path, queryParams), headers: _headers()), requestTimeout);
   }
 
-  Future<dynamic> post(String path, {dynamic body}) async {
+  Future<dynamic> post(String path, {dynamic body, Duration? requestTimeout}) async {
     final encoded = body != null ? jsonEncode(body) : null;
-    return _send(() => _httpClient.post(_uri(path), headers: _headers(), body: encoded));
+    return _send(() => _httpClient.post(_uri(path), headers: _headers(), body: encoded), requestTimeout);
   }
 
-  Future<dynamic> _send(Future<http.Response> Function() requestFn) async {
+  Future<dynamic> _send(Future<http.Response> Function() requestFn, [Duration? requestTimeout]) async {
     try {
-      final response = await requestFn().timeout(timeout);
+      final effectiveTimeout = requestTimeout ?? timeout;
+      final response = await requestFn().timeout(effectiveTimeout);
       return _handleResponse(response);
     } on TimeoutException {
       throw ApiException(

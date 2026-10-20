@@ -91,8 +91,8 @@ class GeminiProvider:
         self,
         api_key: str | None,
         model: str = "gemini-3.8-flash",
-        timeout: float = 25.0,
-        max_retries: int = 1,
+        timeout: float = 60.0,
+        max_retries: int = 2,
     ):
         self._api_key = api_key
         self.model = model

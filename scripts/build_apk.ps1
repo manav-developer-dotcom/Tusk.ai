@@ -1,6 +1,20 @@
-# Tusk.ai Local Debug APK Build Workflow
+param(
+    [string]$ApiBaseUrl = ""
+)
 
 $ErrorActionPreference = "Stop"
+
+if ([string]::IsNullOrWhiteSpace($ApiBaseUrl)) {
+    $detectedIp = (Get-NetIPAddress -AddressFamily IPv4 -InterfaceAlias "Wi-Fi*" -ErrorAction SilentlyContinue | Where-Object { $_.IPAddress -notlike "169.254*" } | Select-Object -ExpandProperty IPAddress -First 1)
+    if (-not $detectedIp) {
+        $detectedIp = (Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.IPAddress -notlike "127.*" -and $_.IPAddress -notlike "169.254*" } | Select-Object -ExpandProperty IPAddress -First 1)
+    }
+    if ($detectedIp) {
+        $ApiBaseUrl = "http://${detectedIp}:8000"
+    } else {
+        $ApiBaseUrl = "http://192.168.0.110:8000"
+    }
+}
 
 $workspaceRoot = $PSScriptRoot | Split-Path -Parent
 $appDir = Join-Path $workspaceRoot "app"
@@ -10,7 +24,8 @@ $buildApk = Join-Path $appDir "build\app\outputs\flutter-apk\app-debug.apk"
 
 Write-Host "=========================================="
 Write-Host " Tusk.ai - Local Debug APK Build Workflow"
-Write-Host " Workspace: $workspaceRoot"
+Write-Host " Workspace : $workspaceRoot"
+Write-Host " Target API: $ApiBaseUrl"
 Write-Host "=========================================="
 
 # 1. Ensure artifacts directory exists
@@ -28,10 +43,10 @@ if (-not (Get-Command flutter -ErrorAction SilentlyContinue)) {
 }
 
 # 3. Build APK
-Write-Host "[2/4] Building Android debug APK via Flutter..."
+Write-Host "[2/4] Building Android debug APK via Flutter with API_BASE_URL=$ApiBaseUrl..."
 Push-Location $appDir
 try {
-    flutter build apk --debug
+    flutter build apk --debug --dart-define="API_BASE_URL=$ApiBaseUrl"
     $exitCode = $LASTEXITCODE
 } finally {
     Pop-Location

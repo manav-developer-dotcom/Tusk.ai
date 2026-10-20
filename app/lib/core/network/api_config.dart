@@ -41,9 +41,20 @@ class ApiConfig {
     return resolveDefaultBaseUrl();
   }
 
+  /// Check if a custom base URL has been configured.
+  bool get isCustomBaseUrl {
+    final custom = _prefs.getString(_baseUrlKey);
+    return custom != null && custom.trim().isNotEmpty;
+  }
+
   /// Override the API base URL at runtime (e.g. from Settings or dev testing).
   Future<void> setBaseUrl(String url) async {
     await _prefs.setString(_baseUrlKey, url.trim());
+  }
+
+  /// Reset the API base URL back to default.
+  Future<void> resetBaseUrl() async {
+    await _prefs.remove(_baseUrlKey);
   }
 
   /// Retrieve or generate a stable anonymous device session identifier.

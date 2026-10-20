@@ -33,7 +33,11 @@ class MissionApiService {
       if (clientRequestId != null) 'client_request_id': clientRequestId,
     };
 
-    final res = await client.post('/v1/missions', body: payload);
+    final res = await client.post(
+      '/v1/missions',
+      body: payload,
+      requestTimeout: const Duration(seconds: 60),
+    );
     final mission = _parseMission(res as Map<String, dynamic>);
     if (conversationId != null) {
       mission.conversationId = conversationId;
@@ -68,7 +72,10 @@ class MissionApiService {
 
   /// Execute an approved mission with real backend tool execution.
   Future<Mission> executeMission(String missionId) async {
-    final res = await client.post('/v1/missions/$missionId/execute');
+    final res = await client.post(
+      '/v1/missions/$missionId/execute',
+      requestTimeout: const Duration(seconds: 180),
+    );
     return _parseMission(res as Map<String, dynamic>);
   }
 

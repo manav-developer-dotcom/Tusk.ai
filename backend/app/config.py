@@ -28,7 +28,7 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(
         env_prefix="TUSK_",
-        env_file=".env",
+        env_file=(str(Path(__file__).resolve().parent.parent / ".env"), ".env"),
         env_file_encoding="utf-8",
         extra="ignore"
     )
