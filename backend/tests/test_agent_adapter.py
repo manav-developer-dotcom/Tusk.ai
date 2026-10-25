@@ -305,3 +305,56 @@ async def test_idempotent_creation_via_client_request_id():
 
     assert plan1.mission_id == plan2.mission_id
     assert plan1.title == plan2.title
+
+
+@pytest.mark.anyio
+async def test_agent_protocol_failed_execution_reporting_and_retry():
+    """Verify external agent protocol honestly returns failed status and supports retry."""
+    from app.services.llm_provider import ProviderUnavailableError
+
+    sender = "agent1q_protocol_retry_test"
+
+    # 1. Create and approve mission
+    ctx_create = make_mock_context()
+    await handle_create_mission(
+        ctx_create,
+        sender,
+        CreateMissionRequest(goal="Deploy marketing campaign for Tusk.ai"),
+    )
+    _, plan = get_sent_message(ctx_create, MissionPlanResponse)
+    mission_id = plan.mission_id
+
+    ctx_appr = make_mock_context()
+    await handle_approve_mission(ctx_appr, sender, ApproveMissionRequest(mission_id=mission_id))
+
+    # 2. Execute with failure on Step 2
+    async def fail_step_2_generate_content(prompt: str, **kwargs) -> str:
+        if "draft" in prompt.lower() or "copy" in prompt.lower():
+            raise ProviderUnavailableError("Simulated provider outage during protocol test.")
+        return await mock_generate_content(prompt, **kwargs)
+
+    with patch.object(GeminiProvider, "generate_content", side_effect=fail_step_2_generate_content):
+        ctx_exec = make_mock_context()
+        await handle_execute_mission(ctx_exec, sender, ExecuteMissionRequest(mission_id=mission_id))
+        _, exec_res = get_sent_message(ctx_exec, MissionExecutionResponse)
+
+    # Must report failed, NOT completed
+    assert exec_res.status == MissionStatus.FAILED.value
+    assert exec_res.status != MissionStatus.COMPLETED.value
+    assert any(s["status"] == "failed" for s in exec_res.steps)
+
+    # 3. External agent re-approves failed mission (retry path)
+    ctx_retry_appr = make_mock_context()
+    await handle_approve_mission(ctx_retry_appr, sender, ApproveMissionRequest(mission_id=mission_id))
+    _, retry_appr_res = get_sent_message(ctx_retry_appr, MissionApprovalResponse)
+    assert retry_appr_res.status == MissionStatus.APPROVED.value
+
+    # 4. Re-execute: provider recovered
+    ctx_reexec = make_mock_context()
+    await handle_execute_mission(ctx_reexec, sender, ExecuteMissionRequest(mission_id=mission_id))
+    _, reexec_res = get_sent_message(ctx_reexec, MissionExecutionResponse)
+
+    assert reexec_res.status == MissionStatus.COMPLETED.value
+    assert all(s["status"] == "completed" for s in reexec_res.steps)
+    assert reexec_res.artifacts_count >= 1
+

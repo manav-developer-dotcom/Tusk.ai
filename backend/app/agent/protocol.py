@@ -114,6 +114,9 @@ async def handle_approve_mission(ctx: Context, sender: str, msg: ApproveMissionR
     try:
         with get_db_connection() as conn:
             service = MissionService(conn)
+            current = service.get_mission(session_id=session_id, mission_id=mission_id)
+            if current.status == MissionStatus.FAILED:
+                service.retry_mission(session_id=session_id, mission_id=mission_id)
             updated = service.approve_mission(session_id=session_id, mission_id=mission_id)
             await ctx.send(
                 sender,

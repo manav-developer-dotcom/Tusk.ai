@@ -41,6 +41,7 @@ class MissionStepResponse(BaseModel):
 
 class MissionPlanResponse(BaseModel):
     version: int = 1
+    planner_mode: str = "development"
     steps: list[MissionStepResponse] = Field(default_factory=list)
 
 

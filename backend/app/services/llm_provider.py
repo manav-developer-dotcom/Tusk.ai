@@ -1,10 +1,51 @@
 import asyncio
 import json
 import logging
+import random
 from typing import Any, Protocol
 import httpx
 
 logger = logging.getLogger("tusk.provider")
+
+# Maximum number of seconds we will wait in a single retry backoff.
+# Quota exhaustion with Retry-After > this threshold signals a daily/hourly
+# limit that will not resolve within a single request lifetime, so we raise
+# immediately rather than blocking the caller.
+_MAX_RETRY_BACKOFF_SECONDS = 60.0
+
+
+def _parse_retry_after(resp: httpx.Response) -> float | None:
+    """Return the Retry-After header value in seconds, or None if absent/unparseable."""
+    raw = resp.headers.get("Retry-After") or resp.headers.get("retry-after")
+    if raw is None:
+        return None
+    try:
+        return float(raw)
+    except ValueError:
+        return None
+
+
+def _extract_retry_delay_from_body(resp: httpx.Response) -> float | None:
+    """
+    Gemini API embeds a retryDelay field (e.g. '11072s') inside the JSON error
+    body when quota is exhausted.  Parse and return seconds, or None.
+    """
+    try:
+        body = resp.json()
+        # Structure: {"error": {"details": [{"retryDelay": "11072s"}, ...]}}
+        details = body.get("error", {}).get("details", [])
+        for detail in details:
+            raw = detail.get("retryDelay") or detail.get("retry_delay")
+            if raw:
+                numeric = str(raw).rstrip("s").strip()
+                return float(numeric)
+        # Also check top-level retryDelay key used in some responses
+        raw = body.get("retryDelay")
+        if raw:
+            return float(str(raw).rstrip("s").strip())
+    except Exception:
+        pass
+    return None
 
 
 class ProviderError(Exception):
@@ -90,9 +131,9 @@ class GeminiProvider:
     def __init__(
         self,
         api_key: str | None,
-        model: str = "gemini-3.8-flash",
+        model: str = "gemini-3-flash-preview",
         timeout: float = 60.0,
-        max_retries: int = 2,
+        max_retries: int = 3,
     ):
         self._api_key = api_key
         self.model = model
@@ -170,8 +211,38 @@ class GeminiProvider:
                 if resp.status_code in (401, 403):
                     raise ProviderAuthenticationError()
                 elif resp.status_code == 429:
+                    # Determine how long the API wants us to wait.
+                    # Check Retry-After header first, then parse from JSON body.
+                    retry_after = _parse_retry_after(resp)
+                    if retry_after is None:
+                        retry_after = _extract_retry_delay_from_body(resp)
+
+                    if retry_after is not None and retry_after > _MAX_RETRY_BACKOFF_SECONDS:
+                        # Quota exhaustion with a long mandatory wait — retrying
+                        # within this request is futile. Surface to the caller.
+                        logger.warning(
+                            "Attempt %d/%d: 429 quota exhausted. Server Retry-After=%.0fs exceeds "
+                            "max backoff (%.0fs). Raising ProviderRateLimitError immediately.",
+                            attempts, self.max_retries + 1, retry_after, _MAX_RETRY_BACKOFF_SECONDS,
+                        )
+                        raise ProviderRateLimitError(
+                            "AI model provider quota exhausted. "
+                            f"Please retry after approximately {int(retry_after / 3600)} hour(s)."
+                        )
+
                     if attempts <= self.max_retries:
-                        await asyncio.sleep(1.5 * attempts)
+                        # Short-duration rate limit — respect Retry-After or use
+                        # exponential backoff with jitter, capped at _MAX_RETRY_BACKOFF_SECONDS.
+                        if retry_after is not None:
+                            backoff = min(retry_after, _MAX_RETRY_BACKOFF_SECONDS)
+                        else:
+                            base = min(_MAX_RETRY_BACKOFF_SECONDS, 2.0 * (2 ** (attempts - 1)))
+                            backoff = base + random.uniform(0, min(base * 0.2, 5.0))
+                        logger.warning(
+                            "Attempt %d/%d: 429 rate limit. Backing off %.1fs.",
+                            attempts, self.max_retries + 1, backoff,
+                        )
+                        await asyncio.sleep(backoff)
                         continue
                     raise ProviderRateLimitError()
                 elif resp.status_code == 404:
@@ -182,9 +253,35 @@ class GeminiProvider:
                     )
                 elif resp.status_code >= 500:
                     if attempts <= self.max_retries:
-                        await asyncio.sleep(1.0 * attempts)
+                        base = min(10.0, 2.0 * (1.5 ** (attempts - 1)))
+                        backoff = base + random.uniform(0, min(base * 0.2, 2.0))
+                        logger.warning(
+                            "Attempt %d/%d: Server error HTTP %d. Retrying in %.1fs",
+                            attempts, self.max_retries + 1, resp.status_code, backoff,
+                        )
+                        await asyncio.sleep(backoff)
                         continue
-                    raise ProviderUnavailableError()
+                    err_detail = ""
+                    try:
+                        err_data = resp.json()
+                        if "error" in err_data and "message" in err_data["error"]:
+                            err_detail = f": {err_data['error']['message']}"
+                    except Exception:
+                        pass
+                    raise ProviderUnavailableError(f"The AI model service is currently unavailable{err_detail}. Please retry.")
+                elif resp.status_code == 400:
+                    err_msg = "AI model provider rejected request (HTTP 400)."
+                    try:
+                        err_data = resp.json()
+                        if "error" in err_data and "message" in err_data["error"]:
+                            err_msg = f"AI provider error: {err_data['error']['message']}"
+                    except Exception:
+                        pass
+                    raise ProviderError(
+                        code="INVALID_REQUEST",
+                        message=err_msg,
+                        status_code=400,
+                    )
                 else:
                     raise ProviderError(
                         code="PROVIDER_ERROR",
@@ -194,11 +291,25 @@ class GeminiProvider:
 
             except httpx.TimeoutException:
                 if attempts <= self.max_retries:
+                    base = min(10.0, 2.0 * (1.5 ** (attempts - 1)))
+                    backoff = base + random.uniform(0, min(base * 0.2, 2.0))
+                    logger.warning(
+                        "Attempt %d/%d: Timeout waiting for AI provider. Retrying in %.1fs",
+                        attempts, self.max_retries + 1, backoff,
+                    )
+                    await asyncio.sleep(backoff)
                     continue
                 raise ProviderTimeoutError()
             except httpx.RequestError as e:
                 if attempts <= self.max_retries:
+                    base = min(10.0, 2.0 * (1.5 ** (attempts - 1)))
+                    backoff = base + random.uniform(0, min(base * 0.2, 2.0))
+                    logger.warning(
+                        "Attempt %d/%d: Network error communicating with AI provider (%s). Retrying in %.1fs",
+                        attempts, self.max_retries + 1, str(e), backoff,
+                    )
+                    await asyncio.sleep(backoff)
                     continue
-                raise ProviderUnavailableError(f"Network error communicating with AI provider.")
+                raise ProviderUnavailableError("Network error communicating with AI provider.")
 
         raise ProviderUnavailableError()

@@ -14,7 +14,7 @@ class AIPlanResult:
     title: str
     clarifications: list[dict[str, Any]]
     steps: list[dict[str, Any]]
-    planner_mode: str  # "gemini-3.8-flash" or "development"
+    planner_mode: str  # "gemini-3.5-flash" or "development"
 
 
 PLAN_RESPONSE_SCHEMA = {
@@ -68,7 +68,7 @@ SYSTEM_INSTRUCTION = (
 class AIPlannerService:
     """Plans missions using real Gemini model inference with schema validation and fallback."""
 
-    def __init__(self, provider: LLMProvider | None = None, model_name: str = "gemini-3.8-flash"):
+    def __init__(self, provider: LLMProvider | None = None, model_name: str = "gemini-3.5-flash"):
         self.provider = provider
         self.model_name = model_name
 

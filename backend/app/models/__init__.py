@@ -14,6 +14,14 @@ from .schemas import (
     ErrorDetail,
     ErrorResponse,
 )
+from .user import (
+    UserRegisterRequest,
+    UserLoginRequest,
+    TokenRefreshRequest,
+    TokenResponse,
+    UserResponse,
+    AuthResponse,
+)
 
 __all__ = [
     "MissionStatus",
@@ -32,4 +40,11 @@ __all__ = [
     "ArtifactListResponse",
     "ErrorDetail",
     "ErrorResponse",
+    "UserRegisterRequest",
+    "UserLoginRequest",
+    "TokenRefreshRequest",
+    "TokenResponse",
+    "UserResponse",
+    "AuthResponse",
 ]
+

@@ -195,10 +195,14 @@ class GenericWriterTool:
             output = f"Completed step '{step_title}': Detailed deliverables generated based on goal specifications."
             return ToolResult(text_output=output)
 
+        context_summary = "\n".join(f"[{k}]: {v}" for k, v in prior_context.items()) if prior_context else ""
+        context_block = f"\nContext from prior steps:\n{context_summary}\n\n" if context_summary else "\n\n"
+
         prompt = (
             f"Overall Goal: {goal}\n"
             f"Step: {step_title}\n"
-            f"Instructions: {step_description}\n\n"
+            f"Instructions: {step_description}"
+            f"{context_block}"
             "Execute this step with thorough, professional content. Do not use emojis."
         )
         sys_inst = "You are Tusk.ai task execution engine. Provide comprehensive, direct results without emojis."

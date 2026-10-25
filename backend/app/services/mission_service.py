@@ -98,6 +98,9 @@ class MissionService:
             else MissionStatus.READY_FOR_APPROVAL
         )
 
+        merged_context = dict(context or {})
+        merged_context["planner_mode"] = plan_result.planner_mode
+
         # 4. Atomic persistence
         return self.repo.create_mission(
             mission_id=mission_id,
@@ -106,7 +109,7 @@ class MissionService:
             title=plan_result.title,
             status=status,
             client_request_id=client_request_id,
-            context=context,
+            context=merged_context,
             steps=plan_result.steps,
             clarifications=plan_result.clarifications,
         )

@@ -317,20 +317,24 @@ void main() {
       );
 
       bool approved = false;
-      bool cancelled = false;
 
       tester.view.physicalSize = const Size(800, 1600);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
 
+      // Wrap in a Navigator so Navigator.pop works inside the screen.
       await tester.pumpWidget(
         MaterialApp(
           theme: TuskTheme.darkTheme(),
-          home: MissionDetailScreen(
-            mission: mission,
-            onApprove: () => approved = true,
-            onCancel: () => cancelled = true,
+          home: Navigator(
+            onGenerateRoute: (_) => MaterialPageRoute(
+              builder: (_) => MissionDetailScreen(
+                mission: mission,
+                onApprove: () => approved = true,
+                onCancel: () {},
+              ),
+            ),
           ),
         ),
       );
@@ -358,14 +362,55 @@ void main() {
       final cancelBtn = find.byKey(const Key('mission_cancel_button'));
       expect(cancelBtn, findsOneWidget);
 
-      // Tap approve
+      // Tap approve — the screen pops itself then calls onApprove
       await tester.tap(approveBtn);
       await tester.pumpAndSettle();
       expect(approved, isTrue);
+    });
 
-      // Tap cancel
+    testWidgets('MissionDetailScreen: cancel button pops and triggers callback', (tester) async {
+      final now = DateTime.now();
+      const planner = LocalPlannerAdapter();
+      final steps = planner.generatePlan('m_cancel', 'Draft a strategy doc', []);
+
+      final mission = Mission(
+        id: 'm_cancel',
+        objective: 'Draft a strategy doc',
+        title: 'Draft a strategy doc',
+        status: MissionStatus.readyForApproval,
+        steps: steps,
+        createdAt: now,
+        updatedAt: now,
+      );
+
+      bool cancelled = false;
+
+      tester.view.physicalSize = const Size(800, 1600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: TuskTheme.darkTheme(),
+          home: Navigator(
+            onGenerateRoute: (_) => MaterialPageRoute(
+              builder: (_) => MissionDetailScreen(
+                mission: mission,
+                onApprove: () {},
+                onCancel: () => cancelled = true,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final cancelBtn = find.byKey(const Key('mission_cancel_button'));
       await tester.ensureVisible(cancelBtn);
       await tester.pumpAndSettle();
+      expect(cancelBtn, findsOneWidget);
+
       await tester.tap(cancelBtn);
       await tester.pumpAndSettle();
       expect(cancelled, isTrue);

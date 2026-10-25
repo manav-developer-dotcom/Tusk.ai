@@ -9,7 +9,8 @@ from fastapi.responses import JSONResponse
 
 from .config import settings
 from .database.connection import init_db
-from .routers import artifacts_router, health_router, missions_router
+from .routers import artifacts_router, auth_router, health_router, missions_router
+from .services.auth_service import AuthServiceException
 from .services.llm_provider import ProviderError
 from .services.mission_service import MissionServiceException
 
@@ -88,6 +89,22 @@ async def provider_error_handler(request: Request, exc: ProviderError):
     )
 
 
+@app.exception_handler(AuthServiceException)
+async def auth_service_exception_handler(request: Request, exc: AuthServiceException):
+    correlation_id = getattr(request.state, "correlation_id", None)
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "error": {
+                "code": exc.code,
+                "message": exc.message,
+                "retryable": exc.retryable,
+                "correlation_id": correlation_id,
+            }
+        },
+    )
+
+
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     correlation_id = getattr(request.state, "correlation_id", None)
@@ -126,6 +143,8 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
 
 # ── Include Routers ──────────────────────────────────────────────────────────
 app.include_router(health_router)
+app.include_router(auth_router)
 app.include_router(missions_router)
 app.include_router(artifacts_router)
+
 

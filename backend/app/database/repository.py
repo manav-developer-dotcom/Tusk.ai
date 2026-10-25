@@ -42,13 +42,21 @@ def _row_to_mission(
         for c in clarification_rows
     ]
 
+    planner_mode = "development"
+    if m_row["context_json"]:
+        try:
+            ctx_data = json.loads(m_row["context_json"])
+            planner_mode = ctx_data.get("planner_mode", "development")
+        except Exception:
+            pass
+
     return MissionResponse(
         id=m_row["id"],
         goal=m_row["goal"],
         title=m_row["title"],
         status=MissionStatus(m_row["status"]),
         session_id=m_row["session_id"],
-        plan=MissionPlanResponse(version=1, steps=steps),
+        plan=MissionPlanResponse(version=1, planner_mode=planner_mode, steps=steps),
         clarifications=clarifications,
         result_summary=m_row["result_summary"],
         failure_reason=m_row["failure_reason"],

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/network/api_config.dart';
 import '../../core/theme/tusk_theme.dart';
 
@@ -13,12 +14,14 @@ class SettingsScreen extends StatefulWidget {
   final ThemeMode currentThemeMode;
   final ValueChanged<ThemeMode> onThemeChanged;
   final ApiConfig? apiConfig;
+  final ValueChanged<String>? onBaseUrlChanged;
 
   const SettingsScreen({
     super.key,
     required this.currentThemeMode,
     required this.onThemeChanged,
     this.apiConfig,
+    this.onBaseUrlChanged,
   });
 
   @override
@@ -27,18 +30,59 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   late String _activeBaseUrl;
+  ApiConfig? _effectiveApiConfig;
 
   @override
   void initState() {
     super.initState();
-    _activeBaseUrl = widget.apiConfig?.baseUrl ?? ApiConfig.resolveDefaultBaseUrl();
+    _effectiveApiConfig = widget.apiConfig;
+    _effectiveApiConfig?.addListener(_onConfigChanged);
+    if (_effectiveApiConfig == null) {
+      SharedPreferences.getInstance().then((prefs) {
+        if (mounted) {
+          final cfg = ApiConfig(prefs);
+          cfg.addListener(_onConfigChanged);
+          setState(() {
+            _effectiveApiConfig = cfg;
+            _activeBaseUrl = cfg.baseUrl;
+          });
+        }
+      });
+    }
+    _activeBaseUrl = _effectiveApiConfig?.baseUrl ?? ApiConfig.resolveDefaultBaseUrl();
+  }
+
+  @override
+  void didUpdateWidget(covariant SettingsScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.apiConfig != widget.apiConfig) {
+      oldWidget.apiConfig?.removeListener(_onConfigChanged);
+      _effectiveApiConfig = widget.apiConfig;
+      _effectiveApiConfig?.addListener(_onConfigChanged);
+      _activeBaseUrl = _effectiveApiConfig?.baseUrl ?? ApiConfig.resolveDefaultBaseUrl();
+    }
+  }
+
+  @override
+  void dispose() {
+    _effectiveApiConfig?.removeListener(_onConfigChanged);
+    super.dispose();
+  }
+
+  void _onConfigChanged() {
+    if (mounted) {
+      setState(() {
+        _activeBaseUrl = _effectiveApiConfig?.baseUrl ?? ApiConfig.resolveDefaultBaseUrl();
+      });
+    }
   }
 
   void _refreshBaseUrl() {
     setState(() {
-      _activeBaseUrl = widget.apiConfig?.baseUrl ?? ApiConfig.resolveDefaultBaseUrl();
+      _activeBaseUrl = _effectiveApiConfig?.baseUrl ?? widget.apiConfig?.baseUrl ?? ApiConfig.resolveDefaultBaseUrl();
     });
   }
+
 
   Future<void> _showBackendConfigDialog(BuildContext context) async {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -62,7 +106,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               testResult = null;
             });
 
-            final cleanUrl = targetUrl.trim().replaceAll(RegExp(r'/+$'), '');
+            final cleanUrl = ApiConfig.normalizeBaseUrl(targetUrl);
             try {
               final uri = Uri.parse('$cleanUrl/health');
               final response = await http.get(uri).timeout(const Duration(seconds: 4));
@@ -127,12 +171,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   const SizedBox(height: 14),
                   TextField(
+                    key: const Key('backend_url_input'),
                     controller: controller,
                     style: TextStyle(color: textPrimary, fontSize: 14, fontFamily: 'monospace'),
                     decoration: InputDecoration(
                       labelText: 'Base URL',
                       labelStyle: TextStyle(color: textSecondary, fontSize: 13),
-                      hintText: 'http://192.168.0.110:8000',
+                      hintText: ApiConfig.defaultLanBaseUrl,
                       hintStyle: TextStyle(color: isDark ? TuskColors.darkTextMuted : TuskColors.lightTextMuted),
                       filled: true,
                       fillColor: isDark ? TuskColors.darkBackground : TuskColors.lightSurfaceElevated,
@@ -161,40 +206,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,
-                    children: [
-                      ActionChip(
-                        label: const Text('Wi-Fi (192.168.0.110)', style: TextStyle(fontSize: 11)),
+                    children: ApiConfig.presets.map((preset) {
+                      return ActionChip(
+                        key: Key('preset_${preset.label}'),
+                        label: Text(preset.label, style: const TextStyle(fontSize: 11)),
                         backgroundColor: isDark ? TuskColors.darkBackground : TuskColors.lightSurfaceElevated,
                         side: BorderSide(color: borderColor),
                         onPressed: () {
-                          controller.text = 'http://192.168.0.110:8000';
+                          controller.text = preset.url;
                           runHealthCheck(controller.text);
                         },
-                      ),
-                      ActionChip(
-                        label: const Text('Emulator (10.0.2.2)', style: TextStyle(fontSize: 11)),
-                        backgroundColor: isDark ? TuskColors.darkBackground : TuskColors.lightSurfaceElevated,
-                        side: BorderSide(color: borderColor),
-                        onPressed: () {
-                          controller.text = 'http://10.0.2.2:8000';
-                          runHealthCheck(controller.text);
-                        },
-                      ),
-                      ActionChip(
-                        label: const Text('Localhost (127.0.0.1)', style: TextStyle(fontSize: 11)),
-                        backgroundColor: isDark ? TuskColors.darkBackground : TuskColors.lightSurfaceElevated,
-                        side: BorderSide(color: borderColor),
-                        onPressed: () {
-                          controller.text = 'http://127.0.0.1:8000';
-                          runHealthCheck(controller.text);
-                        },
-                      ),
-                    ],
+                      );
+                    }).toList(),
                   ),
                   const SizedBox(height: 14),
                   Row(
                     children: [
                       OutlinedButton.icon(
+                        key: const Key('test_connectivity_button'),
                         icon: isTesting
                             ? SizedBox(
                                 width: 12,
@@ -250,28 +279,65 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             actions: [
               TextButton(
+                key: const Key('reset_backend_url_button'),
                 onPressed: () async {
-                  if (widget.apiConfig != null) {
-                    await widget.apiConfig!.resetBaseUrl();
+                  final cfg = _effectiveApiConfig ?? widget.apiConfig;
+                  if (cfg != null) {
+                    await cfg.resetBaseUrl();
+                  } else {
+                    final prefs = await SharedPreferences.getInstance();
+                    await ApiConfig(prefs).resetBaseUrl();
                   }
                   _refreshBaseUrl();
-                  if (context.mounted) Navigator.pop(context);
+                  widget.onBaseUrlChanged?.call(_activeBaseUrl);
+                  if (context.mounted) {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Backend reset to default: $_activeBaseUrl'),
+                        duration: const Duration(seconds: 2),
+                      ),
+                    );
+                  }
                 },
                 child: Text('Reset Default', style: TextStyle(color: textSecondary, fontSize: 13)),
               ),
               FilledButton(
+                key: const Key('save_backend_url_button'),
                 style: FilledButton.styleFrom(
                   backgroundColor: textPrimary,
                   foregroundColor: isDark ? TuskColors.pureBlack : TuskColors.pureWhite,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),
                 onPressed: () async {
-                  final newUrl = controller.text.trim();
-                  if (newUrl.isNotEmpty && widget.apiConfig != null) {
-                    await widget.apiConfig!.setBaseUrl(newUrl);
+                  final rawUrl = controller.text.trim();
+                  if (rawUrl.isEmpty || !ApiConfig.isValidUrl(rawUrl)) {
+                    setDialogState(() {
+                      testSuccess = false;
+                      testResult = 'Please enter a valid HTTP/HTTPS URL (e.g. ${ApiConfig.defaultLanBaseUrl})';
+                    });
+                    return;
+                  }
+                  final cfg = _effectiveApiConfig ?? widget.apiConfig;
+                  if (cfg != null) {
+                    await cfg.setBaseUrl(rawUrl);
+                  } else {
+                    final prefs = await SharedPreferences.getInstance();
+                    final fallback = ApiConfig(prefs);
+                    await fallback.setBaseUrl(rawUrl);
+                    _effectiveApiConfig = fallback;
                   }
                   _refreshBaseUrl();
-                  if (context.mounted) Navigator.pop(context);
+                  widget.onBaseUrlChanged?.call(_activeBaseUrl);
+                  if (context.mounted) {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Backend URL updated: $_activeBaseUrl'),
+                        duration: const Duration(seconds: 2),
+                      ),
+                    );
+                  }
                 },
                 child: const Text('Save', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
               ),
@@ -290,7 +356,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final cardBg = isDark ? TuskColors.darkSurface : TuskColors.lightSurface;
     final cardBorder = isDark ? TuskColors.darkBorder : TuskColors.lightBorder;
 
-    final isCustom = widget.apiConfig?.isCustomBaseUrl ?? false;
+    final isCustom = (_effectiveApiConfig ?? widget.apiConfig)?.isCustomBaseUrl ?? false;
+
 
     return Scaffold(
       appBar: AppBar(

@@ -14,6 +14,33 @@ class Settings(BaseSettings):
     cors_origins: list[str] = ["*"]
     log_level: str = "INFO"
 
+    # JWT Authentication & Identity Configuration
+    jwt_secret_key: str = Field(
+        default="tusk_development_secret_key_at_least_32_bytes_long_change_in_production",
+        validation_alias=AliasChoices("JWT_SECRET_KEY", "TUSK_JWT_SECRET", "JWT_SECRET"),
+        description="Secret key for signing authentication JWTs"
+    )
+    jwt_algorithm: str = Field(
+        default="HS256",
+        validation_alias=AliasChoices("JWT_ALGORITHM", "TUSK_JWT_ALGORITHM"),
+        description="Algorithm used for JWT signing"
+    )
+    access_token_expire_minutes: int = Field(
+        default=30,
+        validation_alias=AliasChoices("ACCESS_TOKEN_EXPIRE_MINUTES", "TUSK_ACCESS_TOKEN_EXPIRE_MINUTES"),
+        description="Lifetime of access token in minutes"
+    )
+    refresh_token_expire_days: int = Field(
+        default=7,
+        validation_alias=AliasChoices("REFRESH_TOKEN_EXPIRE_DAYS", "TUSK_REFRESH_TOKEN_EXPIRE_DAYS"),
+        description="Lifetime of refresh token in days"
+    )
+    auth_required: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("AUTH_REQUIRED", "TUSK_AUTH_REQUIRED"),
+        description="Whether authentication is strictly required on all protected endpoints"
+    )
+
     # Real AI Provider Configuration
     gemini_api_key: str | None = Field(
         default=None,
@@ -21,7 +48,7 @@ class Settings(BaseSettings):
         description="Google Gemini API key for real AI planning and execution"
     )
     gemini_model: str = Field(
-        default="gemini-3.8-flash",
+        default="gemini-3.5-flash",
         validation_alias=AliasChoices("TUSK_GEMINI_MODEL", "GEMINI_MODEL"),
         description="Supported, cost-effective Gemini model identifier"
     )

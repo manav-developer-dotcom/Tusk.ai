@@ -25,16 +25,98 @@ void main() {
       expect(session2, equals(session1));
     });
 
-    test('Custom base URL can be set and takes precedence over default', () async {
+    test('Default base URL resolves platform fallback or env default correctly', () {
+      final defaultUrl = ApiConfig.resolveDefaultBaseUrl();
+      expect(defaultUrl, isNotEmpty);
+      expect(defaultUrl.startsWith('http://') || defaultUrl.startsWith('https://'), isTrue);
+    });
+
+    test('Presets contain valid URLs including defaultLanBaseUrl, emulatorBaseUrl, and localHostBaseUrl', () {
+      expect(ApiConfig.presets.length, equals(3));
+      expect(ApiConfig.presets.any((p) => p.url == ApiConfig.defaultLanBaseUrl), isTrue);
+      expect(ApiConfig.presets.any((p) => p.url == ApiConfig.emulatorBaseUrl), isTrue);
+      expect(ApiConfig.presets.any((p) => p.url == ApiConfig.localHostBaseUrl), isTrue);
+      for (final preset in ApiConfig.presets) {
+        expect(ApiConfig.isValidUrl(preset.url), isTrue);
+      }
+    });
+
+    test('URL normalization handles bare host:port and trailing slashes', () {
+      expect(ApiConfig.normalizeBaseUrl('192.168.0.110:8000'), equals('http://192.168.0.110:8000'));
+      expect(ApiConfig.normalizeBaseUrl('http://192.168.0.110:8000///'), equals('http://192.168.0.110:8000'));
+      expect(ApiConfig.normalizeBaseUrl('https://api.tusk.ai/'), equals('https://api.tusk.ai'));
+      expect(ApiConfig.normalizeBaseUrl(''), equals(''));
+    });
+
+    test('URL validation accepts valid HTTP/HTTPS URLs and rejects invalid inputs', () {
+      expect(ApiConfig.isValidUrl('http://192.168.0.110:8000'), isTrue);
+      expect(ApiConfig.isValidUrl('192.168.0.110:8000'), isTrue);
+      expect(ApiConfig.isValidUrl('https://api.tusk.ai:8000'), isTrue);
+      expect(ApiConfig.isValidUrl(''), isFalse);
+      expect(ApiConfig.isValidUrl('   '), isFalse);
+    });
+
+    test('Custom base URL can be set, normalized, persisted, and updates isCustomBaseUrl', () async {
       SharedPreferences.setMockInitialValues({});
       final prefs = await SharedPreferences.getInstance();
       final config = ApiConfig(prefs);
 
-      expect(config.baseUrl, isNotEmpty);
-      await config.setBaseUrl('http://192.168.1.50:8000');
-      expect(config.baseUrl, equals('http://192.168.1.50:8000'));
+      expect(config.isCustomBaseUrl, isFalse);
+      await config.setBaseUrl('192.168.0.110:8000');
+      expect(config.baseUrl, equals('http://192.168.0.110:8000'));
+      expect(config.isCustomBaseUrl, isTrue);
+    });
+
+    test('Resetting base URL restores platform default and clears custom flag', () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final config = ApiConfig(prefs);
+
+      await config.setBaseUrl('http://192.168.0.110:8000');
+      expect(config.isCustomBaseUrl, isTrue);
+
+      await config.resetBaseUrl();
+      expect(config.isCustomBaseUrl, isFalse);
+      expect(config.baseUrl, equals(ApiConfig.resolveDefaultBaseUrl()));
+    });
+
+    test('ApiConfig notifies listeners on setBaseUrl and resetBaseUrl', () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final config = ApiConfig(prefs);
+
+      int notifications = 0;
+      config.addListener(() => notifications++);
+
+      await config.setBaseUrl('http://192.168.0.110:8000');
+      expect(notifications, equals(1));
+
+      await config.resetBaseUrl();
+      expect(notifications, equals(2));
+    });
+
+    test('ApiClient dynamically targets updated baseUrl without client re-instantiation', () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final config = ApiConfig(prefs);
+
+      late String requestedUrl;
+      final mockClient = MockClient((request) async {
+        requestedUrl = request.url.toString();
+        return http.Response('{"status":"healthy"}', 200, headers: {'content-type': 'application/json'});
+      });
+
+      final client = ApiClient(config: config, httpClient: mockClient);
+
+      await client.get('/health');
+      expect(requestedUrl, equals('${ApiConfig.resolveDefaultBaseUrl()}/health'));
+
+      await config.setBaseUrl('http://192.168.0.110:8000');
+      await client.get('/health');
+      expect(requestedUrl, equals('http://192.168.0.110:8000/health'));
     });
   });
+
 
   group('ApiClient Error & Header Handling Tests', () {
     test('Headers include X-Session-ID, X-Correlation-ID and Content-Type', () async {

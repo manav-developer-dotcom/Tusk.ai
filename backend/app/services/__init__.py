@@ -5,6 +5,18 @@ from .mission_service import (
     MissionNotFoundError,
     InvalidStateTransitionError,
 )
+from .auth_service import (
+    AuthService,
+    AuthServiceException,
+    EmailAlreadyExistsError,
+    InvalidCredentialsError,
+    InvalidTokenError,
+    hash_password,
+    verify_password,
+    create_access_token,
+    create_refresh_token,
+    decode_token,
+)
 
 __all__ = [
     "RuleBasedPlannerService",
@@ -12,4 +24,15 @@ __all__ = [
     "MissionServiceException",
     "MissionNotFoundError",
     "InvalidStateTransitionError",
+    "AuthService",
+    "AuthServiceException",
+    "EmailAlreadyExistsError",
+    "InvalidCredentialsError",
+    "InvalidTokenError",
+    "hash_password",
+    "verify_password",
+    "create_access_token",
+    "create_refresh_token",
+    "decode_token",
 ]
+

@@ -17,6 +17,10 @@ This is a proposed contract to guide implementation. Final route syntax and sche
 | Method | Route | Purpose |
 |---|---|---|
 | GET | `/health` | Liveness/readiness suitable for deployment checks |
+| POST | `/v1/auth/register` | Register user account with email/password and obtain JWT tokens |
+| POST | `/v1/auth/login` | Authenticate credentials and receive access/refresh tokens |
+| POST | `/v1/auth/refresh` | Exchange refresh token for fresh access token |
+| GET | `/v1/auth/me` | Retrieve authenticated caller profile |
 | POST | `/v1/missions` | Create a mission from a user goal |
 | GET | `/v1/missions` | List current user's missions with pagination |
 | GET | `/v1/missions/{mission_id}` | Retrieve mission and plan |
@@ -27,6 +31,7 @@ This is a proposed contract to guide implementation. Final route syntax and sche
 | GET | `/v1/missions/{mission_id}/status` | Retrieve authoritative status and step states |
 | GET | `/v1/missions/{mission_id}/artifacts` | List result artifacts |
 | GET | `/v1/artifacts/{artifact_id}` | Retrieve authorized artifact metadata/content URL |
+
 
 ## Create mission request
 

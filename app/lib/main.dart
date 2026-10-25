@@ -118,6 +118,15 @@ class _TuskRootNavigationState extends State<TuskRootNavigation> {
     if (widget.convRepository != null && widget.missionRepository != null) {
       _convRepo = widget.convRepository!;
       _missionRepo = widget.missionRepository!;
+      if (_apiConfig == null) {
+        SharedPreferences.getInstance().then((prefs) {
+          if (mounted) {
+            setState(() {
+              _apiConfig = ApiConfig(prefs);
+            });
+          }
+        });
+      }
       _loadConversations();
     } else {
       SharedPreferences.getInstance().then((prefs) {
@@ -252,6 +261,9 @@ class _TuskRootNavigationState extends State<TuskRootNavigation> {
         currentThemeMode: widget.currentThemeMode,
         onThemeChanged: widget.onThemeChanged,
         apiConfig: _apiConfig,
+        onBaseUrlChanged: (newUrl) {
+          if (mounted) setState(() {});
+        },
       ),
     ];
 

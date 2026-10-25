@@ -263,7 +263,6 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _approveMission(Mission mission) async {
     final ok = await widget.missionRepository!.approveMission(mission.id);
     if (ok && mounted) {
-      Navigator.pop(context);
       _postSystemMessage(
           'Plan approved. Open the mission and tap "Execute Mission" to run it.');
       _loadMissionForConversation();
@@ -272,7 +271,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _executeMission(Mission mission) async {
     if (widget.missionRepository == null) return;
-    Navigator.pop(context);
     _postSystemMessage('Executing mission — running AI-powered steps...');
     _loadMissionForConversation();
     try {
@@ -306,7 +304,6 @@ class _HomeScreenState extends State<HomeScreen> {
       failureReason: 'Cancelled by user.',
     );
     if (mounted) {
-      Navigator.pop(context);
       _postSystemMessage('Mission cancelled.');
       _loadMissionForConversation();
     }

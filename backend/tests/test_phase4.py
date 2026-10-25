@@ -55,6 +55,73 @@ async def test_provider_rate_limit_handling():
 
 
 @pytest.mark.anyio
+async def test_provider_rate_limit_long_retry_after_header_raises_immediately():
+    """429 with Retry-After > 60s must raise ProviderRateLimitError without sleeping."""
+    from app.services.llm_provider import _MAX_RETRY_BACKOFF_SECONDS
+
+    provider = GeminiProvider(api_key="test-key", max_retries=3)
+    # Retry-After of 11072s (daily quota) must NOT result in retries or sleeping.
+    mock_resp = httpx.Response(
+        429,
+        headers={"Retry-After": "11072"},
+        json={"error": {"message": "Quota exceeded"}},
+    )
+    with patch("httpx.AsyncClient.post", return_value=mock_resp):
+        with patch("asyncio.sleep") as mock_sleep:
+            with pytest.raises(ProviderRateLimitError) as exc_info:
+                await provider.generate_content("Hello")
+            mock_sleep.assert_not_called()
+    assert exc_info.value.code == "PROVIDER_RATE_LIMIT"
+    assert "hour" in exc_info.value.message
+
+
+@pytest.mark.anyio
+async def test_provider_rate_limit_gemini_json_retry_delay_raises_immediately():
+    """429 with Gemini's retryDelay JSON field > 60s must raise immediately."""
+    provider = GeminiProvider(api_key="test-key", max_retries=3)
+    body = {
+        "error": {
+            "message": "Quota exceeded",
+            "details": [
+                {"retryDelay": "11072s"},
+            ],
+        }
+    }
+    mock_resp = httpx.Response(429, json=body)
+    with patch("httpx.AsyncClient.post", return_value=mock_resp):
+        with patch("asyncio.sleep") as mock_sleep:
+            with pytest.raises(ProviderRateLimitError) as exc_info:
+                await provider.generate_content("Hello")
+            mock_sleep.assert_not_called()
+    assert exc_info.value.code == "PROVIDER_RATE_LIMIT"
+
+
+def test_extract_retry_delay_from_body_parses_seconds_suffix():
+    """_extract_retry_delay_from_body must parse '11072s' -> 11072.0."""
+    from app.services.llm_provider import _extract_retry_delay_from_body
+
+    body = {
+        "error": {
+            "details": [
+                {"description": "Quota exceeded"},
+                {"retryDelay": "11072s"},
+            ]
+        }
+    }
+    mock_resp = httpx.Response(429, json=body)
+    result = _extract_retry_delay_from_body(mock_resp)
+    assert result == 11072.0
+
+
+def test_extract_retry_delay_missing_returns_none():
+    """_extract_retry_delay_from_body must return None when retryDelay is absent."""
+    from app.services.llm_provider import _extract_retry_delay_from_body
+
+    mock_resp = httpx.Response(429, json={"error": {"message": "rate limited"}})
+    assert _extract_retry_delay_from_body(mock_resp) is None
+
+
+@pytest.mark.anyio
 async def test_provider_auth_error_handling():
     provider = GeminiProvider(api_key="invalid-key", max_retries=0)
     mock_resp = httpx.Response(403, json={"error": {"message": "API key not valid"}})
@@ -95,7 +162,7 @@ async def test_ai_planner_structured_output():
     }
     mock_provider.generate_content.return_value = json.dumps(mock_plan)
 
-    planner = AIPlannerService(mock_provider, model_name="gemini-3.8-flash")
+    planner = AIPlannerService(mock_provider, model_name="gemini-3.5-flash")
     result = await planner.plan("mission_100", "Launch marketing for my cafe in Seattle")
 
     assert result.needs_clarification is False
@@ -103,7 +170,7 @@ async def test_ai_planner_structured_output():
     assert len(result.steps) == 2
     assert result.steps[0]["id"] == "mission_100_step_1"
     assert result.steps[1]["depends_on"] == ["mission_100_step_1"]
-    assert result.planner_mode == "gemini-3.8-flash"
+    assert result.planner_mode == "gemini-3.5-flash"
 
 
 @pytest.mark.anyio

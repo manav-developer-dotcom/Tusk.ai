@@ -736,7 +736,12 @@ class _ActionArea extends StatelessWidget {
           children: [
             FilledButton.icon(
               key: const Key('mission_approve_button'),
-              onPressed: onApprove,
+              onPressed: onApprove == null
+                  ? null
+                  : () {
+                      Navigator.pop(context);
+                      onApprove!();
+                    },
               icon: const Icon(LucideIcons.check, size: 18),
               label: const Text('Approve Plan',
                   style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
@@ -751,7 +756,12 @@ class _ActionArea extends StatelessWidget {
             const SizedBox(height: 10),
             OutlinedButton(
               key: const Key('mission_cancel_button'),
-              onPressed: onCancel,
+              onPressed: onCancel == null
+                  ? null
+                  : () {
+                      Navigator.pop(context);
+                      onCancel!();
+                    },
               style: OutlinedButton.styleFrom(
                 side: BorderSide(color: border),
                 padding: const EdgeInsets.symmetric(vertical: 14),
@@ -773,7 +783,12 @@ class _ActionArea extends StatelessWidget {
           children: [
             FilledButton.icon(
               key: const Key('mission_execute_button'),
-              onPressed: onExecute,
+              onPressed: onExecute == null
+                  ? null
+                  : () {
+                      Navigator.pop(context);
+                      onExecute!();
+                    },
               icon: const Icon(LucideIcons.play, size: 18),
               label: const Text('Execute Mission',
                   style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
@@ -788,7 +803,12 @@ class _ActionArea extends StatelessWidget {
             const SizedBox(height: 10),
             OutlinedButton(
               key: const Key('mission_cancel_approved_button'),
-              onPressed: onCancel,
+              onPressed: onCancel == null
+                  ? null
+                  : () {
+                      Navigator.pop(context);
+                      onCancel!();
+                    },
               style: OutlinedButton.styleFrom(
                 side: BorderSide(color: border),
                 padding: const EdgeInsets.symmetric(vertical: 14),
@@ -807,7 +827,12 @@ class _ActionArea extends StatelessWidget {
       case MissionStatus.running:
         return OutlinedButton.icon(
           key: const Key('mission_cancel_running_button'),
-          onPressed: onCancel,
+          onPressed: onCancel == null
+              ? null
+              : () {
+                  Navigator.pop(context);
+                  onCancel!();
+                },
           icon: Icon(LucideIcons.xSquare, size: 18),
           label: const Text('Cancel Mission',
               style: TextStyle(fontWeight: FontWeight.w500, fontSize: 15)),
@@ -825,7 +850,12 @@ class _ActionArea extends StatelessWidget {
           children: [
             FilledButton.icon(
               key: const Key('mission_retry_button'),
-              onPressed: onRetry,
+              onPressed: onRetry == null
+                  ? null
+                  : () {
+                      Navigator.pop(context);
+                      onRetry!();
+                    },
               icon: const Icon(LucideIcons.rotateCcw, size: 18),
               label: const Text('Retry',
                   style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
